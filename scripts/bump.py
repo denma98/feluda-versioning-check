@@ -4,6 +4,7 @@ import sys
 import subprocess
 import tomli
 import tomli_w
+import glob
 
 
 class PackageVersionManager:
@@ -28,32 +29,22 @@ class PackageVersionManager:
         Returns:
             dict: Mapping of package paths to their current configuration
         """
-
         packages = {}
 
-        # Define package roots to search
+        # Root package (feluda)
         package_roots = ["feluda"]
-        # Path to the operators folder
-        operators_path = "operators"
-        # Dynamically find subfolders in operators with a pyproject.toml file
-        if os.path.exists(operators_path) and os.path.isdir(operators_path):
-            for folder in os.listdir(operators_path):
-                folder_path = os.path.join(operators_path, folder)
-                if os.path.isdir(folder_path) and os.path.isfile(
-                    os.path.join(folder_path, "pyproject.toml")
-                ):
-                    package_roots.append(folder_path)
 
-        # print(package_roots)
+        # Discover packages inside 'operators' directory using glob
+        operators_path = "operators"
+        if os.path.isdir(operators_path):
+            for folder in glob.glob(f"{operators_path}/*/pyproject.toml"):
+                package_roots.append(os.path.dirname(folder))
 
         for package_root in package_roots:
-            # handle case of just feluda, where its pyproject.toml is outside
             if package_root == "feluda":
-                # Special case: pyproject.toml is at the root for 'feluda'
                 pyproject_path = os.path.join(self.repo_root, "pyproject.toml")
                 full_path = os.path.join(self.repo_root, "feluda")
             else:
-                # Default case: pyproject.toml is inside the package folder
                 full_path = os.path.join(self.repo_root, package_root)
                 pyproject_path = os.path.join(full_path, "pyproject.toml")
 
@@ -68,9 +59,6 @@ class PackageVersionManager:
                         "version", "0.0.0"
                     ),
                 }
-
-        # print("Discovered packages:", packages)
-
         return packages
 
     def _parse_conventional_commit(self, commit_message):
@@ -127,114 +115,129 @@ class PackageVersionManager:
             str: New version string
         """
         # Parse current version
-        major, minor, patch = map(int, current_version.split('.'))
+        major, minor, patch = map(int, current_version.split("."))
 
-        if bump_type == 'major':
+        if bump_type == "major":
             major += 1
             minor = 0
             patch = 0
-        elif bump_type == 'minor':
+        elif bump_type == "minor":
             minor += 1
             patch = 0
-        elif bump_type == 'patch':
+        elif bump_type == "patch":
             patch += 1
         else:
             return current_version
 
         return f"{major}.{minor}.{patch}"
 
-    # def get_package_commits(self, package_path):
-    #     """
-    #     Get commits specific to a package between two commit ranges.
+    def get_package_commits(self, package_path):
+        """
+        Get commits specific to a package between two commit ranges.
 
-    #     Args:
-    #         package_path (str): Relative path to the package
+        Args:
+            package_path (str): Relative path to the package
 
-    #     Returns:
-    #         list: Commit messages affecting this package
-    #     """
-    #     try:
-    #         # Get commits that modified files in this package between two commits
-    #         cmd = [
-    #             'git', 'log',
-    #             f'{self.prev_commit}..{self.current_commit}',
-    #             f'--path-with-tree={package_path}',
-    #             '--pretty=format:%s'
-    #         ]
+        Returns:
+            list: Commit messages affecting this package
+        """
+        try:
+            # Get commits that modified files in this package between two commits
+            cmd = [
+                "git",
+                "log",
+                f"{self.prev_commit}..{self.current_commit}",
+                "--pretty=format:%s",
+                "--",
+                package_path,
+            ]
 
-    #         result = subprocess.run(
-    #             cmd,
-    #             cwd=self.repo_root,
-    #             capture_output=True,
-    #             text=True
-    #         )
+            result = subprocess.run(
+                cmd, cwd=self.repo_root, capture_output=True, text=True, check=True
+            )
 
-    #         return result.stdout.splitlines()
-    #     except Exception as e:
-    #         print(f"Error getting commits for {package_path}: {e}")
-    #         return []
+            return result.stdout.splitlines()
+        except subprocess.CalledProcessError as e:
+            print(f"Error getting commits for {package_path}: {e}")
+            return []
 
-    # def determine_package_bump(self, package_path):
-    #     """
-    #     Determine the version bump type for a specific package.
+    def determine_package_bump(self, package_path):
+        """
+        Determine the version bump type for a specific package.
 
-    #     Args:
-    #         package_path (str): Relative path to the package
+        Args:
+            package_path (str): Relative path to the package
 
-    #     Returns:
-    #         str or None: Version bump type
-    #     """
-    #     # Get commits for this package
-    #     package_commits = self.get_package_commits(package_path)
+        Returns:
+            str or None: Version bump type
+        """
+        # Get commits for this package
+        package_commits = self.get_package_commits(package_path)
 
-    #     # Determine highest bump type from commits
-    #     bump_priority = {'major': 3, 'minor': 2, 'patch': 1, None: 0}
-    #     highest_bump = None
+        # If no commits, skip this package
+        if not package_commits:
+            print(f"No changes found for {package_path}. Skipping version bump.")
+            return None
 
-    #     for commit in package_commits:
-    #         commit_bump = self._parse_conventional_commit(commit)
-    #         if commit_bump and bump_priority.get(commit_bump, 0) > bump_priority.get(highest_bump, 0):
-    #             highest_bump = commit_bump
+        # Determine highest bump type from commits
+        bump_priority = {"major": 3, "minor": 2, "patch": 1, None: 0}
+        highest_bump = None
 
-    #     return highest_bump
+        for commit in package_commits:
+            commit_bump = self._parse_conventional_commit(commit)
+            if commit_bump and bump_priority.get(commit_bump, 0) > bump_priority.get(
+                highest_bump, 0
+            ):
+                highest_bump = commit_bump
 
-    # def update_package_versions(self):
-    #     """
-    #     Update versions for packages with changes.
+        return highest_bump
 
-    #     Returns:
-    #         dict: Mapping of package paths to their new versions
-    #     """
-    #     updated_versions = {}
+    def update_package_versions(self):
+        """
+        Update versions for packages with changes.
 
-    #     for package_path, package_info in self.packages.items():
-    #         # Determine bump type for this package
-    #         bump_type = self.determine_package_bump(package_path)
+        Returns:
+            dict: Mapping of package paths to their new versions
+        """
+        updated_versions = {}
 
-    #         if bump_type:
-    #             # Bump version
-    #             current_version = package_info['current_version']
-    #             new_version = self._bump_version(current_version, bump_type)
+        for package_path, package_info in self.packages.items():
+            # Determine bump type for this package
+            bump_type = self.determine_package_bump(package_path)
 
-    #             # Update pyproject.toml
-    #             with open(package_info['pyproject_path'], 'rb') as f:
-    #                 pyproject_data = tomli.load(f)
+            # Skip packages with no changes (bump_type is None)
+            if not bump_type:
+                continue
 
-    #             pyproject_data['project']['version'] = new_version
+            # Bump version
+            current_version = package_info["current_version"]
+            new_version = self._bump_version(current_version, bump_type)
 
-    #             with open(package_info['pyproject_path'], 'wb') as f:
-    #                 tomli_w.dump(pyproject_data, f)
+            try:
+                # Update pyproject.toml
+                with open(package_info["pyproject_path"], "rb") as f:
+                    pyproject_data = tomli.load(f)
 
-    #             # Store updated version
-    #             updated_versions[package_path] = {
-    #                 'old_version': current_version,
-    #                 'new_version': new_version,
-    #                 'bump_type': bump_type
-    #             }
+                pyproject_data["project"]["version"] = new_version
 
-    #             print(f"Updated {package_path}: {current_version} -> {new_version} ({bump_type} bump)")
+                with open(package_info["pyproject_path"], "wb") as f:
+                    tomli_w.dump(pyproject_data, f)
 
-    #     return updated_versions
+                # Store updated version
+                updated_versions[package_path] = {
+                    "old_version": current_version,
+                    "new_version": new_version,
+                    "bump_type": bump_type,
+                }
+
+                print(
+                    f"Updated {package_path}: {current_version} -> {new_version} ({bump_type} bump)"
+                )
+
+            except Exception as e:
+                print(f"Failed to update version for {package_path}: {e}")
+
+        return updated_versions
 
 
 # Main script execution
@@ -258,7 +261,5 @@ if __name__ == "__main__":
     # Create version manager
     version_manager = PackageVersionManager(repo_root, prev_commit, current_commit)
 
-    version_manager._parse_conventional_commit("fix[optional message]: some message")
-
-    # # Update package versions
-    # version_manager.update_package_versions()
+    # Update package versions
+    version_manager.update_package_versions()
