@@ -6,10 +6,10 @@ permissions:
 on:
   pull_request:
     types:
-      # - closed
-      - opened
-      - reopened
-      - synchronize
+      - closed
+      # - opened
+      # - reopened
+      # - synchronize
     branches:
       - main
 # on:
@@ -27,6 +27,7 @@ jobs:
     permissions:
       contents: write
 
+    if: github.event.pull_request.merged == true  # Ensure the PR was merged
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,22 +44,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install tomli tomli-w
 
-      - name: Get Commit Range
+      - name: Get Base and Latest Commits of the Merged PR
         id: commit-range
         run: |
-          # Get the previous commit on main before this merge
-          # PREV_COMMIT=$(git rev-parse HEAD^1)
-          PREV_COMMIT=$(git rev-parse origin/main^1)
+          # Get the base commit of the PR (the commit where it diverged from the main branch)
+          BASE_COMMIT=$(git merge-base HEAD^ origin/main)
 
-          # Get the current HEAD commit
-          CURRENT_COMMIT=$(git rev-parse HEAD)
+          # Get the commits introduced by this PR
+          COMMITS=$(git rev-list --reverse $BASE_COMMIT..HEAD)
 
-          echo "prev_commit=$PREV_COMMIT" >> $GITHUB_OUTPUT
-          echo "current_commit=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
+          # Extract the first and last commits
+          FIRST_COMMIT=$(echo "$COMMITS" | head -n 1)
+          LATEST_COMMIT=$(echo "$COMMITS" | tail -n 1)
 
-          # Log outputs for debugging purposes
-          echo "Previous Commit: $PREV_COMMIT"
-          echo "Current Commit: $CURRENT_COMMIT"
+          # Set outputs for later steps
+          echo "base_commit=$BASE_COMMIT" >> $GITHUB_OUTPUT
+          echo "first_commit=$FIRST_COMMIT" >> $GITHUB_OUTPUT
+          echo "latest_commit=$LATEST_COMMIT" >> $GITHUB_OUTPUT
+
+          # Log for debugging
+          echo "Base Commit: $BASE_COMMIT"
+          echo "First Commit in PR: $FIRST_COMMIT"
+          echo "Latest Commit in PR: $LATEST_COMMIT"
 
 # jobs:
 #   release:
