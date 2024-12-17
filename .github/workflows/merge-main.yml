@@ -6,7 +6,10 @@ permissions:
 on:
   pull_request:
     types:
-      - closed
+      # - closed
+      - opened
+      - reopened
+      - synchronize
     branches:
       - main
 # on:
@@ -44,12 +47,18 @@ jobs:
         id: commit-range
         run: |
           # Get the previous commit on main before this merge
-          PREV_COMMIT=$(git rev-parse HEAD^1)
+          # PREV_COMMIT=$(git rev-parse HEAD^1)
+          PREV_COMMIT=$(git rev-parse origin/main^1)
+
           # Get the current HEAD commit
           CURRENT_COMMIT=$(git rev-parse HEAD)
 
           echo "prev_commit=$PREV_COMMIT" >> $GITHUB_OUTPUT
           echo "current_commit=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
+
+          # Log outputs for debugging purposes
+          echo "Previous Commit: $PREV_COMMIT"
+          echo "Current Commit: $CURRENT_COMMIT"
 
 # jobs:
 #   release:
