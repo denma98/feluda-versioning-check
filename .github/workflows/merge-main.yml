@@ -1,0 +1,81 @@
+name: Merge PR to main
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+# on:
+#   pull_request:
+#     types:
+#       - opened
+#       - synchronize # Optional: to trigger on PR updates too
+#     branches:
+#       - development
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies for Semantic Versioning
+        run: |
+          python -m pip install --upgrade pip
+          pip install tomli tomli-w
+
+      - name: Get Commit Range
+        id: commit-range
+        run: |
+          # Get the previous commit on main before this merge
+          PREV_COMMIT=$(git rev-parse HEAD^1)
+          # Get the current HEAD commit
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+
+          echo "prev_commit=$PREV_COMMIT" >> $GITHUB_OUTPUT
+          echo "current_commit=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
+
+# jobs:
+#   release:
+#     if: github.event.pull_request.merged == true
+#     runs-on: ubuntu-latest
+#     concurrency: release
+#     permissions:
+#       contents: write
+#     # Map a step output to a job output
+#     outputs:
+#       released: ${{ steps.release.outputs.released }}
+#       tag: ${{ steps.release.outputs.tag }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+#         with:
+#           fetch-depth: 0
+
+#       - name: Setup Python version
+#         uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+#         with:
+#           python-version: '3.11'
+
+#       - name: Python Semantic Release
+#         id: release
+#         uses: python-semantic-release/python-semantic-release@c82bd673c30da94a02e039963c8c4c8a51758096 # v9.1.1
+#         with:
+#           github_token: ${{ secrets.GITHUB_TOKEN }}
