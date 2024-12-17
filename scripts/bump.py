@@ -1,10 +1,11 @@
+import glob
 import os
 import re
-import sys
 import subprocess
+import sys
+
 import tomli
 import tomli_w
-import glob
 
 
 class PackageVersionManager:
@@ -192,6 +193,96 @@ class PackageVersionManager:
 
         return highest_bump
 
+    def _get_tag_format(self, package_info):
+        """
+        Get the tag format for a package from its pyproject.toml.
+
+        Args:
+            package_info (dict): Package information dictionary containing pyproject path
+
+        Returns:
+            str: Tag format string
+
+        Raises:
+            ValueError: If the tag_format is not found in pyproject.toml
+        """
+        try:
+            with open(package_info["pyproject_path"], "rb") as f:
+                pyproject_data = tomli.load(f)
+
+            # Check if the tag_format exists in the pyproject.toml
+            tag_format = (
+                pyproject_data.get("tool", {})
+                .get("semantic_release", {})
+                .get("branches", {})
+                .get("main", {})
+                .get("tag_format")
+            )
+
+            if tag_format:
+                return tag_format
+            else:
+                raise ValueError(
+                    f"Tag format not found in {package_info['pyproject_path']}. Please ensure it's specified in the pyproject.toml."
+                )
+
+        except Exception as e:
+            raise ValueError(
+                f"Error reading tag format from {package_info['pyproject_path']}: {e}"
+            )
+
+    def tag_exists(self, package_info, new_version):
+        """
+        Check if a Git tag exists for the package version based on tag format.
+
+        Args:
+            package_info (dict): Package information containing tag format
+            new_version (str): The new version to check for in Git tags
+
+        Returns:
+            bool: True if the tag exists, otherwise False
+        """
+        try:
+            # Get the tag format from pyproject.toml
+            tag_format = self._get_tag_format(package_info)
+
+            # Format the tag name using the tag_format
+            tag_name = tag_format.format(version=new_version)
+
+            # Get the list of tags and check if the tag exists
+            cmd = ["git", "tag", "--list", tag_name]
+            result = subprocess.run(
+                cmd, cwd=self.repo_root, capture_output=True, text=True, check=True
+            )
+
+            return tag_name in result.stdout.splitlines()
+        except subprocess.CalledProcessError as e:
+            print(f"Error checking tag for {package_info['package_path']}: {e}")
+            return False
+
+    def create_tag(self, package_info, new_version):
+        """
+        Create a Git tag for the updated package version using the tag format from pyproject.toml.
+
+        Args:
+            package_info (dict): Package information containing tag format
+            new_version (str): The new version to tag
+        """
+        try:
+            # Get the tag format from pyproject.toml
+            tag_format = self._get_tag_format(package_info)
+
+            # Format the tag name using the tag_format
+            tag_name = tag_format.format(version=new_version)
+
+            # Create the tag with the formatted name
+            cmd = ["git", "tag", tag_name]
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+
+            print(f"Created tag {tag_name}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error creating tag for {package_info['package_path']}: {e}")
+
     def update_package_versions(self):
         """
         Update versions for packages with changes.
@@ -213,6 +304,11 @@ class PackageVersionManager:
             current_version = package_info["current_version"]
             new_version = self._bump_version(current_version, bump_type)
 
+            # Check if the version tag already exists
+            if self.tag_exists(package_info, new_version):
+                print(f"Tag already exists for {package_path}. Skipping version bump.")
+                continue
+
             try:
                 # Update pyproject.toml
                 with open(package_info["pyproject_path"], "rb") as f:
@@ -222,6 +318,9 @@ class PackageVersionManager:
 
                 with open(package_info["pyproject_path"], "wb") as f:
                     tomli_w.dump(pyproject_data, f)
+
+                # Create a tag for the new version
+                self.create_tag(package_info, new_version)
 
                 # Store updated version
                 updated_versions[package_path] = {
