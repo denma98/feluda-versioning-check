@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.1.1 (2024-12-17)
+
+### Chores
+
+- Update pyproject
+  ([`d89ae1b`](https://github.com/aatmanvaidya/feluda-versioning-check/commit/d89ae1bdcf128b085c0a2e95c0d637a22712b8a7))
+
+
 ## v0.1.0 (2024-12-17)
 
 ### Chores
