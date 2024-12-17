@@ -5,7 +5,7 @@ from enum import Enum
 log = logging.getLogger(__name__)
 
 # test change in feluda for github aciton
-# change 3
+# change 7
 
 class Feluda:
     def __init__(self, configPath):
