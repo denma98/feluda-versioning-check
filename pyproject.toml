@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["python-semantic-release>=9.14.0", "toml>=0.10.2"]
+dev = ["python-semantic-release>=9.14.0", "toml>=0.10.2", "tomli>=2.2.1", "tomli-w>=1.1.0"]
 
 [build-system]
 requires = ["hatchling"]
