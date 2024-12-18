@@ -17,7 +17,13 @@ class PackageVersionManager:
             repo_root (str): Root directory of the monorepo
             prev_commit (str): Previous commit hash
             current_commit (str): Current commit hash
+
+        Raises:
+            FileNotFoundError: If the repo_root is invalid or inaccessible.
         """
+        if not os.path.exists(repo_root):
+            raise FileNotFoundError(f"Repository root '{repo_root}' does not exist.")
+
         self.repo_root = repo_root
         self.prev_commit = prev_commit
         self.current_commit = current_commit
@@ -28,7 +34,10 @@ class PackageVersionManager:
         Discover all packages in the monorepo with their pyproject.toml.
 
         Returns:
-            dict: Mapping of package paths to their current configuration
+            dict: Mapping of package paths to their current configuration.
+
+        Raises:
+            FileNotFoundError: If a pyproject.toml file is not found for a package.
         """
         packages = {}
 
@@ -42,105 +51,152 @@ class PackageVersionManager:
                 package_roots.append(os.path.dirname(folder))
 
         for package_root in package_roots:
-            if package_root == "feluda":
-                pyproject_path = os.path.join(self.repo_root, "pyproject.toml")
-                full_path = os.path.join(self.repo_root, "feluda")
-            else:
-                full_path = os.path.join(self.repo_root, package_root)
-                pyproject_path = os.path.join(full_path, "pyproject.toml")
+            try:
+                if package_root == "feluda":
+                    pyproject_path = os.path.join(self.repo_root, "pyproject.toml")
+                    full_path = os.path.join(self.repo_root, "feluda")
+                else:
+                    full_path = os.path.join(self.repo_root, package_root)
+                    pyproject_path = os.path.join(full_path, "pyproject.toml")
 
-            if os.path.exists(pyproject_path):
-                with open(pyproject_path, "rb") as f:
-                    pyproject_data = tomli.load(f)
+                if os.path.exists(pyproject_path):
+                    with open(pyproject_path, "rb") as f:
+                        pyproject_data = tomli.load(f)
 
-                packages[package_root] = {
-                    "package_path": full_path,
-                    "pyproject_path": pyproject_path,
-                    "current_version": pyproject_data["project"].get(
-                        "version", "0.0.0"
-                    ),
-                }
+                    packages[package_root] = {
+                        "package_path": full_path,
+                        "pyproject_path": pyproject_path,
+                        "current_version": pyproject_data["project"].get(
+                            "version", "0.0.0"
+                        ),
+                    }
+                else:
+                    raise FileNotFoundError(
+                        f"pyproject.toml not found in {package_root}"
+                    )
+            except (FileNotFoundError, tomli.TOMLDecodeError) as e:
+                print(f"Error discovering package at {package_root}: {e}")
+
         return packages
 
     def _parse_conventional_commit(self, commit_message):
         """
         Parse a conventional commit message and determine version bump type.
-        This is how Semantic Versioning works
 
-        Returns: 'major', 'minor', 'patch', or None
-        """
-        # Normalize commit message
-        message = commit_message.lower().strip()
+        Args:
+            commit_message (str): Commit message to parse.
 
-        # Check for BREAKING CHANGE
-        if "breaking change" in message:
-            return "major"
+        Returns:
+            str: 'major', 'minor', 'patch', or None.
 
-        # Parse commit type
+        Raises:
+            ValueError: If the commit message format is invalid.
+
+        Happy Path:
+            Commit message conforms to Conventional Commits, e.g., 'feat: Add new feature'.
+        Failure Path:
+            Commit message is invalid
+            TODO: (fix - then we handle it as a chore)
         """
-        Regex can detect commits of the type
-        <type>: <description>
-        <type>(<optional scope>): <description>
-        <type>[optional scope]: <description>
-        """
-        match = re.match(r"^(\w+)(?:\(|\[)?[^\)\]]*(?:\)|\])?:", message)
-        print(match)
-        if not match:
+        try:
+            # Normalize commit message
+            message = commit_message.lower().strip()
+
+            # Check for BREAKING CHANGE
+            if "breaking change" in message:
+                return "major"
+
+            # Parse commit type
+            """
+            Regex can detect commits of the type
+            <type>: <description>
+            <type>(<optional scope>): <description>
+            <type>[optional scope]: <description>
+            """
+            match = re.match(r"^(\w+)(?:\(|\[)?[^\)\]]*(?:\)|\])?:", message)
+            if not match:
+                return None
+
+            commit_type = match.group(1)
+
+            # Mapping of commit types to version bump
+            type_bump_map = {
+                "feat": "minor",
+                "fix": "patch",
+                "chore": "patch",
+                "docs": "patch",
+                "refactor": "patch",
+                "test": "patch",
+                "perf": "patch",
+                "style": "patch",
+                "build": "patch",
+                "ci": "patch",
+                "revert": "patch",
+            }
+
+            return type_bump_map.get(commit_type)
+        except Exception as e:
+            print(f"Error parsing commit message: {e}")
             return None
-
-        commit_type = match.group(1)
-
-        # Mapping of commit types to version bump
-        type_bump_map = {
-            "feat": "minor",
-            "fix": "patch",
-            "chore": "patch",
-            "docs": "patch",
-            "refactor": "patch",
-            "test": "patch",
-            "perf": "patch",
-            "style": "patch",
-            "build": "patch",
-            "ci": "patch",
-            "revert": "patch",
-        }
-        # print(type_bump_map.get(commit_type))
-
-        return type_bump_map.get(commit_type)
 
     def _bump_version(self, current_version, bump_type):
         """
         Bump version based on semantic versioning rules.
 
+        Args:
+            current_version (str): Current version string in the format 'x.y.z'.
+            bump_type (str): Type of version bump ('major', 'minor', 'patch').
+
         Returns:
-            str: New version string
+            str: New version string.
+
+        Raises:
+            ValueError: If the current_version format is invalid.
+
+        Happy Path:
+            Current version is valid, and a valid bump type is provided.
+        Failure Path:
+            Current version is not in 'x.y.z' format or bump_type is invalid.
         """
-        # Parse current version
-        major, minor, patch = map(int, current_version.split("."))
+        try:
+            major, minor, patch = map(int, current_version.split("."))
 
-        if bump_type == "major":
-            major += 1
-            minor = 0
-            patch = 0
-        elif bump_type == "minor":
-            minor += 1
-            patch = 0
-        elif bump_type == "patch":
-            patch += 1
-        else:
-            return current_version
+            if bump_type == "major":
+                major += 1
+                minor = 0
+                patch = 0
+            elif bump_type == "minor":
+                minor += 1
+                patch = 0
+            elif bump_type == "patch":
+                patch += 1
+            else:
+                return current_version
 
-        return f"{major}.{minor}.{patch}"
+            return f"{major}.{minor}.{patch}"
+        except ValueError:
+            print(f"Invalid version format: {current_version}")
+            raise
 
     def get_package_commits(self, package_path):
         """
         Get commits specific to a package between two commit ranges.
 
         Args:
-            package_path (str): Relative path to the package
+            package_path (str): Relative path to the package.
 
         Returns:
-            list: Commit messages affecting this package
+            list: Commit messages affecting this package.
+
+        Raises:
+            subprocess.CalledProcessError: If the git command fails.
+
+        Happy Path:
+            Git command runs successfully, and commits are returned.
+        Failure Path:
+            Git command fails due to invalid commit range or other issues.
+            TODO: Handle git log when its empty
+            TODO: handle cases when prev commit and current commit is the same
         """
         try:
             # Get commits that modified files in this package between two commits
@@ -167,44 +223,64 @@ class PackageVersionManager:
         Determine the version bump type for a specific package.
 
         Args:
-            package_path (str): Relative path to the package
+            package_path (str): Relative path to the package.
 
         Returns:
-            str or None: Version bump type
+            str or None: Version bump type.
+
+        Happy Path:
+            Commit messages for the package result in a clear version bump type.
+        Failure Path:
+            No relevant commits or errors occur during commit parsing.
         """
-        # Get commits for this package
-        package_commits = self.get_package_commits(package_path)
+        try:
+            # Get commits for this package
+            package_commits = self.get_package_commits(package_path)
 
-        # If no commits, skip this package
-        if not package_commits:
-            print(f"No changes found for {package_path}. Skipping version bump.")
+            # If no commits, skip this package
+            if not package_commits:
+                print(f"No changes found for {package_path}. Skipping version bump.")
+                return None
+
+            bump_priority = {"major": 3, "minor": 2, "patch": 1, None: 0}
+            highest_bump = None
+
+            for commit in package_commits:
+                commit_bump = self._parse_conventional_commit(commit)
+                if commit_bump and bump_priority.get(
+                    commit_bump, 0
+                ) > bump_priority.get(highest_bump, 0):
+                    highest_bump = commit_bump
+
+            return highest_bump
+        except Exception as e:
+            print(f"Error determining version bump for {package_path}: {e}")
             return None
-
-        # Determine highest bump type from commits
-        bump_priority = {"major": 3, "minor": 2, "patch": 1, None: 0}
-        highest_bump = None
-
-        for commit in package_commits:
-            commit_bump = self._parse_conventional_commit(commit)
-            if commit_bump and bump_priority.get(commit_bump, 0) > bump_priority.get(
-                highest_bump, 0
-            ):
-                highest_bump = commit_bump
-
-        return highest_bump
 
     def _get_tag_format(self, package_info):
         """
         Get the tag format for a package from its pyproject.toml.
 
         Args:
-            package_info (dict): Package information dictionary containing pyproject path
+            package_info (dict): A dictionary containing the package's pyproject path.
+                                Expected format: {"pyproject_path": "<path_to_pyproject>"}
 
         Returns:
-            str: Tag format string
+            str: The tag format string, e.g., "{version}".
 
         Raises:
-            ValueError: If the tag_format or project name is not found in pyproject.toml.
+            ValueError: If the tag format or project name is not found in pyproject.toml.
+            FileNotFoundError: If the pyproject.toml file is not found at the specified path.
+            tomli.TOMLDecodeError: If the pyproject.toml file is not properly formatted.
+
+        Happy Path:
+            - If the `pyproject.toml` file exists and is properly formatted,
+            the function retrieves the `tag_format` specified under `tool.semantic_release.branches.main.tag_format`.
+
+        Failure Path:
+            - If the `pyproject.toml` file is missing or malformed.
+            - If the `tag_format` is not found in the `pyproject.toml`.
+            - If the `name` or `version` fields are missing in the `pyproject.toml`.
         """
         try:
             with open(package_info["pyproject_path"], "rb") as f:
@@ -238,31 +314,53 @@ class PackageVersionManager:
 
             # Return the tag format with {name} and {version} resolved
             return tag_format.format(name=project_name, version=current_version)
-        except Exception as e:
-            raise ValueError(
-                f"Error reading tag format from {package_info['pyproject_path']}: {e}"
-            )
 
+        except FileNotFoundError as e:
+            print(
+                f"Error: pyproject.toml not found at {package_info['pyproject_path']}"
+            )
+            raise
+        except tomli.TOMLDecodeError as e:
+            print(
+                f"Error: Failed to parse {package_info['pyproject_path']} due to a TOML format error."
+            )
+            raise
+        except ValueError as e:
+            print(f"Error: {e}")
+            raise
+        except Exception as e:
+            print(f"Unexpected error in _get_tag_format: {e}")
+            raise
 
     def tag_exists(self, package_info, new_version):
         """
         Check if a Git tag exists for the package version based on tag format.
 
         Args:
-            package_info (dict): Package information containing tag format
-            new_version (str): The new version to check for in Git tags
+            package_info (dict): A dictionary containing tag format details from pyproject.toml.
+                                Expected format: {"package_path": "<path>", "pyproject_path": "<path_to_pyproject>"}
+            new_version (str): The new version to check for in Git tags.
 
         Returns:
-            bool: True if the tag exists, otherwise False
+            bool: True if the tag exists, otherwise False.
+
+        Raises:
+            subprocess.CalledProcessError: If the git command fails.
+            ValueError: If tag format cannot be generated from pyproject.toml.
+
+        Happy Path:
+            - If the `tag_format` is found in `pyproject.toml` and the tag already exists for the new version,
+            the function returns `True`.
+
+        Failure Path:
+            - If the `tag_format` is not found in `pyproject.toml`.
+            - If the git command fails due to issues with fetching tags or accessing the repository.
         """
         try:
-            # Get the tag format from pyproject.toml
             tag_format = self._get_tag_format(package_info)
 
-            # Format the tag name using the tag_format
             tag_name = tag_format.format(version=new_version)
 
-            # Get the list of tags and check if the tag exists
             cmd = ["git", "tag", "--list", tag_name]
             result = subprocess.run(
                 cmd, cwd=self.repo_root, capture_output=True, text=True, check=True
@@ -270,60 +368,101 @@ class PackageVersionManager:
 
             return tag_name in result.stdout.splitlines()
         except subprocess.CalledProcessError as e:
-            print(f"Error checking tag for {package_info['package_path']}: {e}")
-            return False
+            print(
+                f"Error: Failed to run git tag command to check tag for {package_info['package_path']}: {e}"
+            )
+            raise
+        except ValueError as e:
+            print(f"Error: {e}")
+            raise
+        except Exception as e:
+            print(f"Unexpected error in tag_exists: {e}")
+            raise
 
     def create_tag(self, package_info, new_version):
         """
         Create a Git tag for the updated package version using the tag format from pyproject.toml.
 
         Args:
-            package_info (dict): Package information containing tag format
-            new_version (str): The new version to tag
+            package_info (dict): A dictionary containing tag format details from pyproject.toml.
+                                Expected format: {"package_path": "<path>", "pyproject_path": "<path_to_pyproject>"}
+            new_version (str): The new version to tag.
+
+        Returns:
+            None
+
+        Raises:
+            subprocess.CalledProcessError: If the git command fails to create the tag.
+            ValueError: If the tag format cannot be generated from pyproject.toml.
+
+        Happy Path:
+            - If the tag format is found in `pyproject.toml` and the git tag command succeeds,
+            a new tag is created in the repository.
+
+        Failure Path:
+            - If the `tag_format` is not found in `pyproject.toml`.
+            - If the git command to create the tag fails.
         """
         try:
-            # Get the tag format from pyproject.toml
             tag_format = self._get_tag_format(package_info)
 
-            # Format the tag name using the tag_format
             tag_name = tag_format.format(version=new_version)
 
-            # Create the tag with the formatted name
             cmd = ["git", "tag", tag_name]
             subprocess.run(cmd, cwd=self.repo_root, check=True)
 
             print(f"Created tag {tag_name}")
         except subprocess.CalledProcessError as e:
-            print(f"Error creating tag for {package_info['package_path']}: {e}")
+            print(
+                f"Error: Failed to create tag for {package_info['package_path']}: {e}"
+            )
+            raise
+        except ValueError as e:
+            print(f"Error: {e}")
+            raise
+        except Exception as e:
+            print(f"Unexpected error in create_tag: {e}")
+            raise
 
     def update_package_versions(self):
         """
         Update versions for packages with changes.
 
         Returns:
-            dict: Mapping of package paths to their new versions
+            dict: A dictionary mapping package paths to their updated versions.
+
+        Raises:
+            subprocess.CalledProcessError: If the git command fails to fetch commits or create tags.
+            ValueError: If version bump cannot be determined or applied.
+            FileNotFoundError: If pyproject.toml is missing or inaccessible.
+
+        Happy Path:
+            - If version bumps are detected for any package, the function updates the versions in `pyproject.toml`,
+            creates Git tags, and returns a dictionary of updated packages with their old and new versions.
+            - If a package does not have any changes, the version is not bumped.
+            - If the tag already exists for the new version, version bumping is skipped
+
+        Failure Path:
+            - If any error occurs during version bump, tag creation, or updating pyproject.toml.
         """
         updated_versions = {}
 
         for package_path, package_info in self.packages.items():
-            # Determine bump type for this package
-            bump_type = self.determine_package_bump(package_path)
-
-            # Skip packages with no changes (bump_type is None)
-            if not bump_type:
-                continue
-
-            # Bump version
-            current_version = package_info["current_version"]
-            new_version = self._bump_version(current_version, bump_type)
-
-            # Check if the version tag already exists
-            if self.tag_exists(package_info, new_version):
-                print(f"Tag already exists for {package_path}. Skipping version bump.")
-                continue
-
             try:
-                # Update pyproject.toml
+                bump_type = self.determine_package_bump(package_path)
+
+                if not bump_type:
+                    continue
+
+                current_version = package_info["current_version"]
+                new_version = self._bump_version(current_version, bump_type)
+
+                if self.tag_exists(package_info, new_version):
+                    print(
+                        f"Tag already exists for {package_path}. Skipping version bump."
+                    )
+                    continue
+
                 with open(package_info["pyproject_path"], "rb") as f:
                     pyproject_data = tomli.load(f)
 
@@ -332,10 +471,8 @@ class PackageVersionManager:
                 with open(package_info["pyproject_path"], "wb") as f:
                     tomli_w.dump(pyproject_data, f)
 
-                # Create a tag for the new version
                 self.create_tag(package_info, new_version)
 
-                # Store updated version
                 updated_versions[package_path] = {
                     "old_version": current_version,
                     "new_version": new_version,
@@ -366,12 +503,22 @@ if __name__ == "__main__":
     prev_commit = sys.argv[1]
     current_commit = sys.argv[2]
 
-    print(repo_root)
-    print(prev_commit)
-    print(current_commit)
+    # Initialize version manager
+    try:
+        version_manager = PackageVersionManager(repo_root, prev_commit, current_commit)
 
-    # Create version manager
-    version_manager = PackageVersionManager(repo_root, prev_commit, current_commit)
+        # Analyze changes and update package versions
+        updated_versions = version_manager.update_package_versions()
 
-    # Update package versions
-    version_manager.update_package_versions()
+        if updated_versions:
+            print("\nVersion updates completed successfully:")
+            for package, info in updated_versions.items():
+                print(
+                    f"{package}: {info['old_version']} -> {info['new_version']} ({info['bump_type']} bump)"
+                )
+        else:
+            print("\nNo packages required version updates.")
+
+    except Exception as e:
+        print(f"An error occurred during the version update process: {e}")
+        sys.exit(1)
