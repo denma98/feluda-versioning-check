@@ -32,7 +32,7 @@ version_variable = ["pyproject.toml:project.version"]
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
-tag_format = "feluda-{version}"
+tag_format = "{name}-{version}"
 
 [tool.uv.workspace]
 members = ["operators/image_vec_rep_resnet"]
