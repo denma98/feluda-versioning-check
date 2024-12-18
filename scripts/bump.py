@@ -204,13 +204,20 @@ class PackageVersionManager:
             str: Tag format string
 
         Raises:
-            ValueError: If the tag_format is not found in pyproject.toml
+            ValueError: If the tag_format or project name is not found in pyproject.toml.
         """
         try:
             with open(package_info["pyproject_path"], "rb") as f:
                 pyproject_data = tomli.load(f)
 
-            # Check if the tag_format exists in the pyproject.toml
+            # Retrieve project name
+            project_name = pyproject_data.get("project", {}).get("name")
+            if not project_name:
+                raise ValueError(
+                    f"Project name not found in {package_info['pyproject_path']}. Please specify it in the pyproject.toml."
+                )
+
+            # Retrieve tag format
             tag_format = (
                 pyproject_data.get("tool", {})
                 .get("semantic_release", {})
@@ -218,14 +225,13 @@ class PackageVersionManager:
                 .get("main", {})
                 .get("tag_format")
             )
-
-            if tag_format:
-                return tag_format
-            else:
+            if not tag_format:
                 raise ValueError(
                     f"Tag format not found in {package_info['pyproject_path']}. Please ensure it's specified in the pyproject.toml."
                 )
 
+            # Return the tag format with {name} resolved
+            return tag_format.format(name=project_name)
         except Exception as e:
             raise ValueError(
                 f"Error reading tag format from {package_info['pyproject_path']}: {e}"
