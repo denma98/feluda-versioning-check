@@ -93,10 +93,12 @@ class PackageVersionManager:
             ValueError: If the commit message format is invalid.
 
         Happy Path:
-            Commit message conforms to Conventional Commits, e.g., 'feat: Add new feature'.
+            - Commit message conforms to Conventional Commits, e.g., 'feat: Add new feature'.
+            - Commit message does not conform to Conventional Commits 
+                but is non-empty, treated as a 'chore' type, returns "patch"
         Failure Path:
-            Commit message is invalid
-            TODO: (fix - then we handle it as a chore)
+            - Commit message is invalid
+            - Commit message is empty or in an invalid format and cannot be parsed.
         """
         try:
             # Normalize commit message
@@ -115,6 +117,10 @@ class PackageVersionManager:
             """
             match = re.match(r"^(\w+)(?:\(|\[)?[^\)\]]*(?:\)|\])?:", message)
             if not match:
+                # If the commit message does not match the conventional commit format
+                # and is not empty, treat it as a "chore:" and return "patch".
+                if message:
+                    return "patch"
                 return None
 
             commit_type = match.group(1)
@@ -203,7 +209,7 @@ class PackageVersionManager:
             cmd = [
                 "git",
                 "log",
-                f"{self.prev_commit}..{self.current_commit}",
+                f"{self.prev_commit}^..{self.current_commit}",
                 "--pretty=format:%s",
                 "--",
                 package_path,
