@@ -44,4 +44,4 @@ def run(image_obj):
     return image_vec
 
 
-# test change in image vec operator 2
+# test change in image vec operator 3
