@@ -210,11 +210,17 @@ class PackageVersionManager:
             with open(package_info["pyproject_path"], "rb") as f:
                 pyproject_data = tomli.load(f)
 
-            # Retrieve project name
+            # Retrieve project name and version
             project_name = pyproject_data.get("project", {}).get("name")
             if not project_name:
                 raise ValueError(
                     f"Project name not found in {package_info['pyproject_path']}. Please specify it in the pyproject.toml."
+                )
+
+            current_version = pyproject_data.get("project", {}).get("version")
+            if not current_version:
+                raise ValueError(
+                    f"Version not found in {package_info['pyproject_path']}. Please specify it in the pyproject.toml."
                 )
 
             # Retrieve tag format
@@ -230,12 +236,13 @@ class PackageVersionManager:
                     f"Tag format not found in {package_info['pyproject_path']}. Please ensure it's specified in the pyproject.toml."
                 )
 
-            # Return the tag format with {name} resolved
-            return tag_format.format(name=project_name)
+            # Return the tag format with {name} and {version} resolved
+            return tag_format.format(name=project_name, version=current_version)
         except Exception as e:
             raise ValueError(
                 f"Error reading tag format from {package_info['pyproject_path']}: {e}"
             )
+
 
     def tag_exists(self, package_info, new_version):
         """
