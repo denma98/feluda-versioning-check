@@ -37,7 +37,7 @@ version_variable = [
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
-tag_format = "feluda-{version}"
+tag_format = "{name}-{version}"
 
 [tool.uv.workspace]
 members = [

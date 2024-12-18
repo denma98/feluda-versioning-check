@@ -25,7 +25,7 @@ version_variable = [
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
-tag_format = "feluda-image-vec-rep-resnet-{version}"
+tag_format = "{name}-{version}"
 
 [tool.hatch.build.targets.wheel]
 packages = [
