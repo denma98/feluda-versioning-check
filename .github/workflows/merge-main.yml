@@ -73,7 +73,9 @@ jobs:
           FIRST_COMMIT: ${{ steps.commit-range.outputs.first_commit }}
           LATEST_COMMIT: ${{ steps.commit-range.outputs.latest_commit }}
         run: |
-          python semantic_release.py "$FIRST_COMMIT" "$LATEST_COMMIT"
+          pwd
+          # run the script
+          python -m scripts.bump "$FIRST_COMMIT" "$LATEST_COMMIT"
 
       - name: Commit and Push Changes
         run: |
