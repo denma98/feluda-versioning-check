@@ -20,6 +20,7 @@ dev = [
     "tomli>=2.2.1",
     "tomli-w>=1.1.0",
     "ruff>=0.8.3",
+    "pre-commit>=4.0.1"
 ]
 
 [build-system]
