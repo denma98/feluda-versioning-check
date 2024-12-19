@@ -86,6 +86,16 @@ jobs:
             git push
             # push tags
             git push --tags
+            #Get new tags
+            git fetch --tags
+            NEW_TAGS=$(git tag -l)
+            # Find newly created tags
+            CREATED_TAGS=$(comm -13 <(echo "$OLD_TAGS" | sort) <(echo "$NEW_TAGS" | sort))
+            # Store only feluda-*.*.* tags (excluding feluda-image-* and others) in output
+            FELUDA_TAGS=$(echo "$CREATED_TAGS" | grep -E "^feluda-[0-9]+\.[0-9]+\.[0-9]+$" || true)
+            echo "feluda_tags<<EOF" >> $GITHUB_OUTPUT
+            echo "$FELUDA_TAGS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
