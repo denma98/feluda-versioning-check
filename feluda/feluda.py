@@ -5,7 +5,7 @@ from feluda import config
 log = logging.getLogger(__name__)
 
 # test change in feluda for github aciton
-# change 29
+# change 30
 
 class Feluda:
     def __init__(self, configPath):
