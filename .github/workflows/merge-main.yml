@@ -88,7 +88,7 @@ jobs:
             # push tags
             TAG_OUTPUT=$(git push --tags)
              # Extract the newly pushed tags from the output
-            NEW_TAGS=$(echo "$TAG_OUTPUT" | grep -oP "(?<=\* \[new tag\] +)[^\s]+")
+            NEW_TAGS=$(echo "$TAG_OUTPUT" | awk '/\* \[new tag\]/ {print $NF}')
 
             # Debug: Log the output and the extracted tags
             echo "Git push output:"
