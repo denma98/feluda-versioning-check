@@ -12,13 +12,6 @@ on:
       # - synchronize
     branches:
       - main
-# on:
-#   pull_request:
-#     types:
-#       - opened
-#       - synchronize # Optional: to trigger on PR updates too
-#     branches:
-#       - development
 
 jobs:
   release:
