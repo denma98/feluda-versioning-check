@@ -84,7 +84,7 @@ jobs:
             # Commit changes
             git commit -m "chore: bump version and update related files"
             # Push changes
-            git 
+            git push
             
             # storing old tag before push
             OLD_TAGS=$(git tag -l)
