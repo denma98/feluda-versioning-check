@@ -102,7 +102,8 @@ jobs:
             gh release create "$UNPUSHED_TAGS" \
               --repo="$GITHUB_REPOSITORY" \
               --title="$UNPUSHED_TAGS" \
-              --generate-notes
+              --generate-notes \
+              --notes-file=CHANGELOG.md
             
           fi
         env:
