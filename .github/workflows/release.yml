@@ -3,7 +3,7 @@ name: Create release
 on:
   push:
     tags:
-      - 'feluda-*.*.*'
+      - '*'
 
 permissions:
   contents: write
