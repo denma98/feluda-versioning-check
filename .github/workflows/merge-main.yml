@@ -87,8 +87,13 @@ jobs:
             git push
             # push tags
             git push --tags
-            
-            #store old tags
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create Release
+        run: |
+          #store old tags
             OLD_TAGS=$(git tag -l)
             
             # get the latest tags
@@ -100,10 +105,6 @@ jobs:
             # get new tags
             CREATED_TAGS=$(comm -13 <(echo "$OLD_TAGS" | sort) <(echo "$NEW_TAGS" | sort))
 
-            echo "new_tags<<EOF" >> $GITHUB_OUTPUT
-            echo "$CREATED_TAGS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            # get the latest tag
+            LATEST_TAG=$(echo "$CREATED_TAGS" | tail -n 1)
 
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
