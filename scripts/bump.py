@@ -376,7 +376,6 @@ class PackageVersionManager:
             tag_format = self._get_tag_format(package_info)
 
             tag_name = tag_format.format(name=project_name, version=new_version)
-            print(f"tag name -- {tag_name}")
 
             cmd = ["git", "tag", "--list", tag_name]
             result = subprocess.run(
