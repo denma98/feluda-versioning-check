@@ -85,51 +85,22 @@ jobs:
             git commit -m "chore: bump version and update related files"
             # Push changes
             git push
+
+            git fetch --tags
+
+            UNPUSHED_TAGS=$(comm -23 \
+            <(git tag | grep -E '^feluda-[0-9]+\.[0-9]+\.[0-9]+$' | sort) \
+            <(git ls-remote --tags origin | awk -F'/' '{print $NF}' | grep -E '^feluda-[0-9]+\.[0-9]+\.[0-9]+$' | sort))
+
+            # Debug: Log the unpushed tags
+            echo "Unpushed tags: $UNPUSHED_TAGS"
+
             # push tags
-            TAG_OUTPUT=$(git push --tags)
-             # Extract the newly pushed tags from the output
-            NEW_TAGS=$(echo "$TAG_OUTPUT" | awk '/\* \[new tag\]/ {print $NF}')
-
-            # Debug: Log the output and the extracted tags
-            echo "Git push output:"
-            echo "$TAG_OUTPUT"
-            echo "Newly pushed tags:"
-            echo "$NEW_TAGS"
-
-            # If you need to process the tags further, iterate through them
-            for tag in $NEW_TAGS; do
-              echo "Processing tag: $tag"
-            done  
+            git push --tags
+            
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Create Release
-        run: |
-          # Store old tags
-          OLD_TAGS=$(git tag -l)
-          
-          # Fetch the latest tags
-          git fetch --tags
-
-          # Get the new tags
-          NEW_TAGS=$(git tag -l)
-
-          # Find newly created tags
-          CREATED_TAGS=$(comm -13 <(echo "$OLD_TAGS" | sort) <(echo "$NEW_TAGS" | sort))
-
-          # Debug: Log the old, new, and created tags
-          echo "Old tags: $OLD_TAGS"
-          echo "New tags: $NEW_TAGS"
-          echo "Created tags: $CREATED_TAGS"
-
-          # Get the latest tag from the new tags
-          LATEST_TAG=$(echo "$CREATED_TAGS" | tail -n 1)
-
-          # Debug: Log the latest tag
-          echo "Latest tag: $LATEST_TAG"
-
-          # Output the latest tag to GitHub Actions output
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-
+     
 
