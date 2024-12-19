@@ -3,20 +3,16 @@ name: Merge PR to main
 permissions:
   contents: read
 
-# on:
-#   pull_request:
-#     types:
-#       - closed
-#       # - opened
-#       # - reopened
-#       # - synchronize
-#     branches:
-#       - main
-
 on:
-  push:
+  pull_request:
+    types:
+      - closed
+      # - opened
+      # - reopened
+      # - synchronize
     branches:
       - main
+
 
 jobs:
   release:
