@@ -103,8 +103,6 @@ jobs:
               --repo="$GITHUB_REPOSITORY" \
               --title="$UNPUSHED_TAGS" \
               --generate-notes \
-              --notes-file=CHANGELOG.md
-            
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
