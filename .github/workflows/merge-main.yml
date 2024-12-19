@@ -84,9 +84,26 @@ jobs:
             # Commit changes
             git commit -m "chore: bump version and update related files"
             # Push changes
-            git push
+            git 
+            
+            # storing old tag before push
+            OLD_TAGS=$(git tag -l)
             # push tags
             git push --tags
+            # storing new tags after push
+            NEW_TAGS=$(git tag -l)
+            # find newly created tags
+            CREATED_TAGS=$(comm -13 <(echo "$OLD_TAGS" | sort) <(echo "$NEW_TAGS" | sort))
+            # Debug: Log the old, new, and created tags
+            echo "Old tags: $OLD_TAGS"
+            echo "New tags: $NEW_TAGS"
+            echo "Created tags: $CREATED_TAGS"
+
+            # Get the latest tag from the new tags
+            LATEST_TAG=$(echo "$CREATED_TAGS" | tail -n 1)
+
+            # Debug: Log the latest tag
+            echo "Latest tag: $LATEST_TAG"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
