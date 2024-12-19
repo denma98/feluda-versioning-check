@@ -93,18 +93,30 @@ jobs:
       
       - name: Create Release
         run: |
-          #store old tags
-            OLD_TAGS=$(git tag -l)
-            
-            # get the latest tags
-            git fetch --tags
+          # Store old tags
+          OLD_TAGS=$(git tag -l)
+          
+          # Fetch the latest tags
+          git fetch --tags
 
-            # get the new tags
-            NEW_TAGS=$(git tag -l)
+          # Get the new tags
+          NEW_TAGS=$(git tag -l)
 
-            # get new tags
-            CREATED_TAGS=$(comm -13 <(echo "$OLD_TAGS" | sort) <(echo "$NEW_TAGS" | sort))
+          # Find newly created tags
+          CREATED_TAGS=$(comm -13 <(echo "$OLD_TAGS" | sort) <(echo "$NEW_TAGS" | sort))
 
-            # get the latest tag
-            LATEST_TAG=$(echo "$CREATED_TAGS" | tail -n 1)
+          # Debug: Log the old, new, and created tags
+          echo "Old tags: $OLD_TAGS"
+          echo "New tags: $NEW_TAGS"
+          echo "Created tags: $CREATED_TAGS"
+
+          # Get the latest tag from the new tags
+          LATEST_TAG=$(echo "$CREATED_TAGS" | tail -n 1)
+
+          # Debug: Log the latest tag
+          echo "Latest tag: $LATEST_TAG"
+
+          # Output the latest tag to GitHub Actions output
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
 
