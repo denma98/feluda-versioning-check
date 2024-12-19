@@ -100,9 +100,9 @@ jobs:
 
             # Releasing the package
             gh release create "$UNPUSHED_TAGS" \
-              -- repo="$GITHUB_REPOSITORY" \
-              -- title="$UNPUSHED_TAGS" \
-              -- generate-notes
+              --repo="$GITHUB_REPOSITORY" \
+              --title="$UNPUSHED_TAGS" \
+              --generate-notes
             
           fi
         env:
