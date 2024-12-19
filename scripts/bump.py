@@ -94,7 +94,7 @@ class PackageVersionManager:
 
         Happy Path:
             - Commit message conforms to Conventional Commits, e.g., 'feat: Add new feature'.
-            - Commit message does not conform to Conventional Commits 
+            - Commit message does not conform to Conventional Commits
                 but is non-empty, treated as a 'chore' type, returns "patch"
         Failure Path:
             - Commit message is invalid
@@ -318,15 +318,15 @@ class PackageVersionManager:
                     f"Tag format not found in {package_info['pyproject_path']}. Please ensure it's specified in the pyproject.toml."
                 )
 
-            # Return the tag format with {name} and {version} resolved
-            return tag_format.format(name=project_name, version=current_version)
+            # Return the raw tag format
+            return tag_format
 
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             print(
                 f"Error: pyproject.toml not found at {package_info['pyproject_path']}"
             )
             raise
-        except tomli.TOMLDecodeError as e:
+        except tomli.TOMLDecodeError:
             print(
                 f"Error: Failed to parse {package_info['pyproject_path']} due to a TOML format error."
             )
@@ -363,9 +363,20 @@ class PackageVersionManager:
             - If the git command fails due to issues with fetching tags or accessing the repository.
         """
         try:
+            with open(package_info["pyproject_path"], "rb") as f:
+                pyproject_data = tomli.load(f)
+
+            # Retrieve project name and version
+            project_name = pyproject_data.get("project", {}).get("name")
+            if not project_name:
+                raise ValueError(
+                    f"Project name not found in {package_info['pyproject_path']}. Please specify it in the pyproject.toml."
+                )
+
             tag_format = self._get_tag_format(package_info)
 
-            tag_name = tag_format.format(version=new_version)
+            tag_name = tag_format.format(name=project_name, version=new_version)
+            print(f"tag name -- {tag_name}")
 
             cmd = ["git", "tag", "--list", tag_name]
             result = subprocess.run(
@@ -410,9 +421,19 @@ class PackageVersionManager:
             - If the git command to create the tag fails.
         """
         try:
+            with open(package_info["pyproject_path"], "rb") as f:
+                pyproject_data = tomli.load(f)
+
+            # Retrieve project name
+            project_name = pyproject_data.get("project", {}).get("name")
+            if not project_name:
+                raise ValueError(
+                    f"Project name not found in {package_info['pyproject_path']}. Please specify it in the pyproject.toml."
+                )
+
             tag_format = self._get_tag_format(package_info)
 
-            tag_name = tag_format.format(version=new_version)
+            tag_name = tag_format.format(name=project_name, version=new_version)
 
             cmd = ["git", "tag", tag_name]
             subprocess.run(cmd, cwd=self.repo_root, check=True)
