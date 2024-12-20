@@ -13,7 +13,6 @@ on:
     branches:
       - main
 
-
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -21,7 +20,7 @@ jobs:
     permissions:
       contents: write
 
-    if: github.event.pull_request.merged == true  # Ensure the PR was merged
+    if: github.event.pull_request.merged == true # Ensure the PR was merged
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -62,6 +61,13 @@ jobs:
           echo "First Commit in PR: $FIRST_COMMIT"
           echo "Latest Commit in PR: $LATEST_COMMIT"
 
+      - name: Get Latest Feluda Tag
+        id: latest-tag
+        run: |
+          LATEST_TAG=$(git tag -l "feluda-[0-9]*" | sort -V | tail -n1)
+          echo "current_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "current feluda tag: $LATEST_TAG"
+
       - name: Run Dynamic Semantic Release Script
         env:
           FIRST_COMMIT: ${{ steps.commit-range.outputs.first_commit }}
@@ -72,39 +78,35 @@ jobs:
           python -m scripts.semantic_release_workflow "$FIRST_COMMIT" "$LATEST_COMMIT"
 
       - name: Commit and Push Changes
+        id: push-changes
         run: |
-          # Configure git user
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions [Bot]"
 
-          # Check if there are any changes
           if [[ -n $(git status -s) ]]; then
-            # Add all changes
             git add .
-            # Commit changes
-            git commit -m "chore: semantic versioning and update related files"
-            # Push changes
+            git commit -m "chore: bump version and update related files"
             git push
+            git push --tags
 
-            git fetch --tags
-
-            UNPUSHED_TAGS=$(comm -23 \
-            <(git tag | grep -E '^feluda-[0-9]+\.[0-9]+\.[0-9]+$' | sort) \
-            <(git ls-remote --tags origin | awk -F'/' '{print $NF}' | grep -E '^feluda-[0-9]+\.[0-9]+\.[0-9]+$' | sort))
-
-            # Debug: Log the unpushed tags
-            echo "Unpushed tags: $UNPUSHED_TAGS"
-
-            if [[ -n "$UNPUSHED_TAGS" ]]; then
-              # push tags
-              git push --tags
-
-              # Releasing the package
-              gh release create "$UNPUSHED_TAGS" \
-                --repo="$GITHUB_REPOSITORY" \
-                --title="$UNPUSHED_TAGS" \
-                --generate-notes
+            # Check if new feluda tag was created
+            NEW_TAG=$(git tag -l "feluda-[0-9]*" | sort -V | tail -n1)
+            if [ "$NEW_TAG" != "${{ steps.latest-tag.outputs.current_tag }}" ]; then
+              echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+              echo "tag_created=true" >> $GITHUB_OUTPUT
+            else
+              echo "tag_created=false" >> $GITHUB_OUTPUT
             fi
+          else
+            echo "tag_created=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Create GitHub Release
+        if: steps.push-changes.outputs.tag_created == 'true'
+        run: |
+          gh release create "${{ steps.push-changes.outputs.new_tag }}" \
+            --repo="${GITHUB_REPOSITORY}" \
+            --title="Release ${{ steps.push-changes.outputs.new_tag }}" \
+            --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
