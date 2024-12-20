@@ -104,8 +104,6 @@ jobs:
                 --repo="$GITHUB_REPOSITORY" \
                 --title="$UNPUSHED_TAGS" \
                 --generate-notes \
-            else
-              echo "No tags to push"
             fi
           fi
         env:
