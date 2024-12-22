@@ -39,7 +39,6 @@ rm -rf dist
 # for image vec
 cd operators/image_vec_rep_resnet/
 uv build --index-strategy unsafe-best-match
-uv build
 ```
 
 then we publish
