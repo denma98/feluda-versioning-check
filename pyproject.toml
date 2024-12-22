@@ -15,7 +15,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "python-semantic-release>=9.14.0",
+    "hatchling>=1.27.0",
+    "packaging>=24.2",
     "toml>=0.10.2",
     "tomli>=2.2.1",
     "tomli-w>=1.1.0",
@@ -24,32 +25,24 @@ dev = [
 ]
 
 [build-system]
-requires = [
-    "hatchling",
-]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.semantic_release]
-version_variable = [
-    "pyproject.toml:project.version",
-]
+version_variable = ["pyproject.toml:project.version"]
 
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
 tag_format = "{name}-{version}"
 
-[tool.uv]
-index = [
-    { name = "testpypi", url = "https://test.pypi.org/simple/" },
-]
+# [tool.uv]
+# index = [
+#     { name = "testpypi", url = "https://test.pypi.org/simple/", publish-url = "https://test.pypi.org/legacy/" },
+# ]
 
 [tool.uv.workspace]
-members = [
-    "operators/image_vec_rep_resnet",
-]
+members = ["operators/image_vec_rep_resnet"]
 
 [tool.hatch.build.targets.wheel]
-packages = [
-    "feluda",
-]
+packages = ["feluda"]
