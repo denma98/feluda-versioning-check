@@ -59,3 +59,10 @@ uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https
 ```
 
 The demo notebook where the pacakges from test pypi are installed and used can be found - [here](https://colab.research.google.com/drive/1DRKILpyqYwe_dOtklM5g4B4czf2aty7l?usp=sharing)
+
+---
+### usage of automate sh files
+```sh
+chmod +x file_name.sh
+./file_name.sh "feat: your commit message here"
+```
