@@ -103,6 +103,5 @@ echo "Pulling latest changes..."
 git fetch --all
 git pull origin $MAIN_BRANCH
 git pull --all
-git pull --tags
 
 echo "Workflow completed successfully!"
