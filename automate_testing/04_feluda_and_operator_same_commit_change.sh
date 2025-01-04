@@ -22,7 +22,7 @@ fi
 
 COMMIT_MESSAGE="$1"
 CURRENT_DATE=$(date +%Y%m%d_%H%M%S)
-BRANCH_NAME="feluda_changes_${CURRENT_DATE}"
+BRANCH_NAME="feluda_and_operator_same_commit_change_${CURRENT_DATE}"
 MAIN_BRANCH="main"
 
 # Function to check command status
@@ -52,7 +52,15 @@ echo "Creating new branch: $BRANCH_NAME"
 git checkout -b $BRANCH_NAME
 check_status "Failed to create new branch"
 
-# Create or append to dummy_changes.txt in feluda folder
+# Create or append to dummy_changes.txt in image vec folder
+echo "Creating/updating dummy file..."
+DUMMY_FILE="operators/image_vec_rep_resnet/dummy_changes.txt"
+UTC_TIME=$(date -u "+%Y-%m-%d %H:%M:%S UTC")
+echo "Change made at: $UTC_TIME" >> "$DUMMY_FILE"
+echo "Branch: $BRANCH_NAME" >> "$DUMMY_FILE"
+echo "-------------------" >> "$DUMMY_FILE"
+
+# changes to feluda folder
 echo "Creating/updating dummy file..."
 DUMMY_FILE="feluda/dummy_changes.txt"
 UTC_TIME=$(date -u "+%Y-%m-%d %H:%M:%S UTC")

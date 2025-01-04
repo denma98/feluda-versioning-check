@@ -93,8 +93,8 @@ echo "Merging Pull Request..."
 gh pr merge "$PR_URL" --merge --delete-branch
 check_status "Failed to merge PR"
 
-echo "Waiting for the MERGE MAIN action to RUN (25secs)"
-sleep 30
+echo "Waiting for the MERGE MAIN action to RUN (35secs)"
+sleep 35
 
 # Checkout main branch
 echo "Checking out main branch..."
