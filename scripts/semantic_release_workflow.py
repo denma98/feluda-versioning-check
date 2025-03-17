@@ -205,6 +205,20 @@ class PackageVersionManager:
             return None
 
     def _get_tag_format(self, package_info):
+        """
+    Get the tag format for a package from its pyproject.toml.
+
+    Args:
+        package_info (dict): A dictionary containing the package's pyproject data.
+                            Expected format: {"pyproject_data": <parsed_toml_data>}.
+
+    Returns:
+        str: The tag format string (e.g., "v{version}").
+
+    Raises:
+        ValueError: If the tag format is not found in pyproject.toml.
+        KeyError: If required keys are missing in pyproject.toml.
+    """
         try:
             pyproject_data = package_info["pyproject_data"]
             tool = pyproject_data.get("tool", {})
@@ -314,6 +328,22 @@ class PackageVersionManager:
             raise
 
     def update_package_versions(self):
+        """
+    Update versions for packages with changes and create Git tags.
+
+    Returns:
+        dict: A dictionary mapping package names to their updated version information.
+              Format: {
+                  "package_name": {
+                      "old_version": str,
+                      "new_version": str,
+                      "bump_type": str
+                  }
+              }
+
+    Raises:
+        Exception: If an error occurs during version bumping or tag creation.
+    """
         updated_versions = {}
         for package_name, package_info in self.packages.items():
             try:
