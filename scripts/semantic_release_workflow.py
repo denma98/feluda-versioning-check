@@ -32,35 +32,57 @@ class PackageVersionManager:
     def _discover_packages(self):
         """
         Discover all packages in the monorepo with their pyproject.toml.
+        Excludes the root directory and invalid packages.
 
         Returns:
-            dict: Mapping of package paths to their current configuration.
+            dict: Mapping of package names to their configuration.
 
         Raises:
-            FileNotFoundError: If a pyproject.toml file is not found for a package.
+            FileNotFoundError: If no valid packages are found.
         """
         packages = {}
 
-        # Discover all packages with pyproject.toml
-        for pyproject_path in glob.glob(f"{self.repo_root}/**/pyproject.toml", recursive=True):
-            try:
-                package_root = os.path.dirname(pyproject_path)
-                package_name = os.path.basename(package_root)
+        try:
+            # Find all pyproject.toml files except in root directory
+            for pyproject_path in glob.glob(f"{self.repo_root}/**/pyproject.toml", recursive=True):
+                try:
+                    package_root = os.path.dirname(pyproject_path)
 
-                with open(pyproject_path, "rb") as f:
-                    pyproject_data = tomlkit.parse(f.read())
+                    # Skip root directory package
+                    if os.path.abspath(package_root) == os.path.abspath(self.repo_root):
+                        continue
 
-                packages[package_name] = {
-                    "package_path": package_root,
-                    "pyproject_path": pyproject_path,
-                    "current_version": pyproject_data["project"].get("version", "0.0.0"),
-                    "pyproject_data": pyproject_data,  # Cache parsed data
-                }
-            except (FileNotFoundError, tomlkit.exceptions.TOMLKitError) as e:
-                print(f"Error discovering package at {package_root}: {e}")
+                    with open(pyproject_path, "r") as f:
+                        pyproject_data = tomlkit.parse(f.read())
 
-        return packages
+                    # Validate required fields
+                    if not all([
+                        pyproject_data.get("project", {}).get("name"),
+                        pyproject_data.get("project", {}).get("version"),
+                        pyproject_data.get("tool", {}).get("semantic_release", {}).get("branches", {}).get("main", {}).get("tag_format")
+                    ]):
+                        raise ValueError(f"Missing required fields in {pyproject_path}")
 
+                    package_name = pyproject_data["project"]["name"]
+                    packages[package_name] = {
+                        "package_path": os.path.relpath(package_root, self.repo_root),
+                        "pyproject_path": pyproject_path,
+                        "current_version": pyproject_data["project"]["version"],
+                        "pyproject_data": pyproject_data,
+                    }
+
+                except (FileNotFoundError, tomlkit.exceptions.TOMLKitError, ValueError) as e:
+                    print(f"Skipping invalid package at {package_root}: {str(e)}")
+                    continue
+
+            if not packages:
+                raise FileNotFoundError("No valid packages found in the repository")
+
+            return packages
+
+        except Exception as e:
+            print(f"Failed to discover packages: {str(e)}")
+            raise
     def _parse_conventional_commit(self, commit_message):
         """
         Parse a conventional commit message and determine version bump type.
