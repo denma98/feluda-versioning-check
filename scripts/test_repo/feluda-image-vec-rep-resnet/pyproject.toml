@@ -1,0 +1,6 @@
+﻿[project]
+name = "feluda-image-vec-rep-resnet"
+version = "0.1.0"
+
+[tool.semantic_release.branches.main]
+tag_format = "v{version}"
