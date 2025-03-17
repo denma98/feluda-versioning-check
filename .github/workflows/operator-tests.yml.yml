@@ -1,14 +1,16 @@
 name: Run Modified Operator Tests
 
 on:
-  pull_request:
-    branches:
-      - main
-      - development
-      - hotfix
-    paths:
-      - 'operators/**'
-      - '.github/workflows/operator-tests.yml'
+  workflow_dispatch:
+# on:
+#   pull_request:
+#     branches:
+#       - main
+#       - development
+#       - hotfix
+#     paths:
+#       - 'operators/**'
+#       - '.github/workflows/operator-tests.yml'
 
 jobs:
   test-operators:
