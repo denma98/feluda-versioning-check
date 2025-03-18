@@ -32,34 +32,69 @@ class PackageVersionManager:
     def _discover_packages(self):
         """
         Discover all packages in the monorepo with their pyproject.toml.
+        Excludes the root directory and invalid packages.
 
         Returns:
-            dict: Mapping of package paths to their current configuration.
+            dict: Mapping of package names to their configuration.
 
         Raises:
-            FileNotFoundError: If a pyproject.toml file is not found for a package.
+            FileNotFoundError: If no valid packages are found.
         """
         packages = {}
 
-        # Discover all packages with pyproject.toml
-        for pyproject_path in glob.glob(f"{self.repo_root}/**/pyproject.toml", recursive=True):
-            try:
-                package_root = os.path.dirname(pyproject_path)
-                package_name = os.path.basename(package_root)
+        try:
+            # Find all pyproject.toml files except in root directory
+            for pyproject_path in glob.glob(
+                f"{self.repo_root}/**/pyproject.toml", recursive=True
+            ):
+                try:
+                    package_root = os.path.dirname(pyproject_path)
 
-                with open(pyproject_path, "rb") as f:
-                    pyproject_data = tomlkit.parse(f.read())
+                    # Skip root directory package
+                    if os.path.abspath(package_root) == os.path.abspath(self.repo_root):
+                        continue
 
-                packages[package_name] = {
-                    "package_path": package_root,
-                    "pyproject_path": pyproject_path,
-                    "current_version": pyproject_data["project"].get("version", "0.0.0"),
-                    "pyproject_data": pyproject_data,  # Cache parsed data
-                }
-            except (FileNotFoundError, tomlkit.exceptions.TOMLKitError) as e:
-                print(f"Error discovering package at {package_root}: {e}")
+                    with open(pyproject_path, "r") as f:
+                        pyproject_data = tomlkit.parse(f.read())
 
-        return packages
+                    # Validate required fields
+                    if not all(
+                        [
+                            pyproject_data.get("project", {}).get("name"),
+                            pyproject_data.get("project", {}).get("version"),
+                            pyproject_data.get("tool", {})
+                            .get("semantic_release", {})
+                            .get("branches", {})
+                            .get("main", {})
+                            .get("tag_format"),
+                        ]
+                    ):
+                        raise ValueError(f"Missing required fields in {pyproject_path}")
+
+                    package_name = pyproject_data["project"]["name"]
+                    packages[package_name] = {
+                        "package_path": os.path.relpath(package_root, self.repo_root),
+                        "pyproject_path": pyproject_path,
+                        "current_version": pyproject_data["project"]["version"],
+                        "pyproject_data": pyproject_data,
+                    }
+
+                except (
+                    FileNotFoundError,
+                    tomlkit.exceptions.TOMLKitError,
+                    ValueError,
+                ) as e:
+                    print(f"Skipping invalid package at {package_root}: {str(e)}")
+                    continue
+
+            if not packages:
+                raise FileNotFoundError("No valid packages found in the repository")
+
+            return packages
+
+        except Exception as e:
+            print(f"Failed to discover packages: {str(e)}")
+            raise
 
     def _parse_conventional_commit(self, commit_message):
         """
@@ -138,7 +173,7 @@ class PackageVersionManager:
                 subprocess.run(
                     ["git", "rev-parse", f"{self.prev_commit}^"],
                     check=True,
-                    capture_output=True
+                    capture_output=True,
                 )
                 commit_range = f"{self.prev_commit}^..{self.current_commit}"
             except subprocess.CalledProcessError:
@@ -150,15 +185,11 @@ class PackageVersionManager:
                 commit_range,
                 "--pretty=format:%B",  # Capture full commit message (subject + body)
                 "--",
-                package_path
+                package_path,
             ]
 
             result = subprocess.run(
-                cmd,
-                cwd=self.repo_root,
-                capture_output=True,
-                text=True,
-                check=True
+                cmd, cwd=self.repo_root, capture_output=True, text=True, check=True
             )
             return result.stdout.strip().split("\n\n")  # Split by commit
         except subprocess.CalledProcessError as e:
@@ -206,19 +237,19 @@ class PackageVersionManager:
 
     def _get_tag_format(self, package_info):
         """
-    Get the tag format for a package from its pyproject.toml.
+        Get the tag format for a package from its pyproject.toml.
 
-    Args:
-        package_info (dict): A dictionary containing the package's pyproject data.
-                            Expected format: {"pyproject_data": <parsed_toml_data>}.
+        Args:
+            package_info (dict): A dictionary containing the package's pyproject data.
+                                Expected format: {"pyproject_data": <parsed_toml_data>}.
 
-    Returns:
-        str: The tag format string (e.g., "v{version}").
+        Returns:
+            str: The tag format string (e.g., "v{version}").
 
-    Raises:
-        ValueError: If the tag format is not found in pyproject.toml.
-        KeyError: If required keys are missing in pyproject.toml.
-    """
+        Raises:
+            ValueError: If the tag format is not found in pyproject.toml.
+            KeyError: If required keys are missing in pyproject.toml.
+        """
         try:
             pyproject_data = package_info["pyproject_data"]
             tool = pyproject_data.get("tool", {})
@@ -263,7 +294,9 @@ class PackageVersionManager:
             # Check if the tag exists in the output
             return tag_name in result.stdout.splitlines()
         except subprocess.CalledProcessError as e:
-            print(f"Error: Failed to run git tag command to check tag for {package_info['package_path']}: {e}")
+            print(
+                f"Error: Failed to run git tag command to check tag for {package_info['package_path']}: {e}"
+            )
             raise
         except ValueError as e:
             print(f"Error: {e}")
@@ -298,7 +331,7 @@ class PackageVersionManager:
         """
         try:
             with open(package_info["pyproject_path"], "rb") as f:
-                pyproject_data =tomlkit.parse(f.read())
+                pyproject_data = tomlkit.parse(f.read())
 
             # Retrieve project name
             project_name = pyproject_data.get("project", {}).get("name")
@@ -329,21 +362,21 @@ class PackageVersionManager:
 
     def update_package_versions(self):
         """
-    Update versions for packages with changes and create Git tags.
+        Update versions for packages with changes and create Git tags.
 
-    Returns:
-        dict: A dictionary mapping package names to their updated version information.
-              Format: {
-                  "package_name": {
-                      "old_version": str,
-                      "new_version": str,
-                      "bump_type": str
+        Returns:
+            dict: A dictionary mapping package names to their updated version information.
+                  Format: {
+                      "package_name": {
+                          "old_version": str,
+                          "new_version": str,
+                          "bump_type": str
+                      }
                   }
-              }
 
-    Raises:
-        Exception: If an error occurs during version bumping or tag creation.
-    """
+        Raises:
+            Exception: If an error occurs during version bumping or tag creation.
+        """
         updated_versions = {}
         for package_name, package_info in self.packages.items():
             try:
@@ -368,11 +401,12 @@ class PackageVersionManager:
                 updated_versions[package_name] = {
                     "old_version": current_version,
                     "new_version": new_version,
-                    "bump_type": bump_type
+                    "bump_type": bump_type,
                 }
             except Exception as e:
                 print(f"Error updating {package_name}: {e}")
         return updated_versions
+
 
 # Main script execution
 if __name__ == "__main__":
