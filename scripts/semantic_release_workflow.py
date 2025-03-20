@@ -30,47 +30,67 @@ class PackageVersionManager:
         self.packages = self._discover_packages()
 
     def _discover_packages(self):
-        """
-        Discover all packages in the monorepo, including the root package (feluda).
-        """
         packages = {}
+
+        # Include root package if pyproject.toml exists
+        root_pyproject = os.path.join(self.repo_root, "pyproject.toml")
+        if os.path.exists(root_pyproject):
+            with open(root_pyproject, "r") as f:
+                pyproject_data = tomlkit.parse(f.read())
+
+            # Validate required fields
+            if all([
+                pyproject_data.get("project", {}).get("name"),
+                pyproject_data.get("project", {}).get("version"),
+                pyproject_data.get("tool", {})
+                    .get("semantic_release", {})
+                    .get("branches", {})
+                    .get("main", {})
+                    .get("tag_format"),
+            ]):
+                packages["feluda"] = {
+                    "package_path": self.repo_root,  # Root directory
+                    "pyproject_path": root_pyproject,
+                    "current_version": pyproject_data["project"]["version"],
+                    "pyproject_data": pyproject_data,
+                }
+
+        # Discover subpackages
         for pyproject_path in glob.glob(f"{self.repo_root}/**/pyproject.toml", recursive=True):
+            package_root = os.path.dirname(pyproject_path)
+
+            # Skip root package (already handled above)
+            if os.path.abspath(package_root) == os.path.abspath(self.repo_root):
+                continue
+
             try:
-                package_root = os.path.dirname(pyproject_path)
-
-                # Skip subpackages that are not direct children of the root
-                # (Adjust this based on your monorepo structure)
-                if "operators/" in pyproject_path and package_root != self.repo_root:
-                    continue
-
                 with open(pyproject_path, "r") as f:
                     pyproject_data = tomlkit.parse(f.read())
 
                 # Validate required fields
-                name = pyproject_data["project"]["name"]
-                version = pyproject_data["project"]["version"]
-                tag_format = (
+                if all([
+                    pyproject_data.get("project", {}).get("name"),
+                    pyproject_data.get("project", {}).get("version"),
                     pyproject_data.get("tool", {})
-                    .get("semantic_release", {})
-                    .get("branches", {})
-                    .get("main", {})
-                    .get("tag_format")
-                )
-                if not all([name, version, tag_format]):
-                    raise ValueError(f"Invalid pyproject.toml at {pyproject_path}")
-
-                packages[name] = {
-                    "package_path": package_root,
-                    "pyproject_path": pyproject_path,
-                    "current_version": version,
-                    "pyproject_data": pyproject_data,
-                }
+                        .get("semantic_release", {})
+                        .get("branches", {})
+                        .get("main", {})
+                        .get("tag_format"),
+                ]):
+                    package_name = pyproject_data["project"]["name"]
+                    packages[package_name] = {
+                        "package_path": package_root,
+                        "pyproject_path": pyproject_path,
+                        "current_version": pyproject_data["project"]["version"],
+                        "pyproject_data": pyproject_data,
+                    }
             except Exception as e:
-                print(f"Skipping invalid package: {e}")
+                print(f"Skipping invalid package at {package_root}: {e}")
                 continue
 
         if not packages:
-            raise FileNotFoundError("No valid packages found")
+            raise FileNotFoundError("No valid packages found in the repository")
+
         return packages
 
     def _parse_conventional_commit(self, commit_message):
@@ -100,6 +120,20 @@ class PackageVersionManager:
         except Exception as e:
             print(f"Error parsing commit message: {e}")
             return None
+
+    def _validate_pyproject(self, pyproject_data, pyproject_path):
+        required_fields = [
+            pyproject_data.get("project", {}).get("name"),
+            pyproject_data.get("project", {}).get("version"),
+            pyproject_data.get("tool", {})
+                .get("semantic_release", {})
+                .get("branches", {})
+                .get("main", {})
+                .get("tag_format"),
+        ]
+        if not all(required_fields):
+            raise ValueError(f"Missing required fields in {pyproject_path}")
+        return True
 
     def _bump_version(self, current_version, bump_type):
         """
@@ -141,36 +175,34 @@ class PackageVersionManager:
             raise
 
     def get_package_commits(self, package_path):
-        """
-        Get commits specific to a package between two commit ranges.
-        """
         try:
             # Handle initial commit (no parent)
             try:
                 subprocess.run(
                     ["git", "rev-parse", f"{self.prev_commit}^"],
                     check=True,
-                    capture_output=True
+                    capture_output=True,
                 )
                 commit_range = f"{self.prev_commit}^..{self.current_commit}"
             except subprocess.CalledProcessError:
                 commit_range = f"{self.prev_commit}..{self.current_commit}"
 
-            cmd = [
-                "git",
-                "log",
-                commit_range,
-                "--pretty=format:%B",  # Capture full commit message (subject + body)
-                "--",
-                package_path
-            ]
+            # For root package, exclude subdirectories
+            if os.path.abspath(package_path) == os.path.abspath(self.repo_root):
+                cmd = [
+                    "git", "log", commit_range,
+                    "--pretty=format:%B",
+                    "--", ".", ":!*/"  # Exclude subdirectories
+                ]
+            else:
+                cmd = [
+                    "git", "log", commit_range,
+                    "--pretty=format:%B",
+                    "--", package_path
+                ]
 
             result = subprocess.run(
-                cmd,
-                cwd=self.repo_root,
-                capture_output=True,
-                text=True,
-                check=True
+                cmd, cwd=self.repo_root, capture_output=True, text=True, check=True
             )
             return result.stdout.strip().split("\n\n")  # Split by commit
         except subprocess.CalledProcessError as e:
