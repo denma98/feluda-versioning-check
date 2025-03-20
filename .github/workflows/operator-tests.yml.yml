@@ -2,15 +2,14 @@ name: Run Modified Operator Tests
 
 on:
   workflow_dispatch:
-# on:
-#   pull_request:
-#     branches:
-#       - main
-#       - development
-#       - hotfix
-#     paths:
-#       - 'operators/**'
-#       - '.github/workflows/operator-tests.yml'
+  pull_request:
+    branches:
+      - main
+      - development
+      - hotfix
+    paths:
+      - 'operators/**'
+      - '.github/workflows/operator-tests.yml'
 
 jobs:
   test-operators:
@@ -32,8 +31,12 @@ jobs:
       - name: Detect changes in operators
         id: check-changes
         run: |
-          # Get the base branch (target branch of the PR)
-          BASE_BRANCH=${{ github.base_ref }}
+          # Set the base branch
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_BRANCH=${{ github.base_ref }}
+          else
+            BASE_BRANCH="main"  # Default branch for workflow_dispatch
+          fi
           echo "Base branch: $BASE_BRANCH"
 
           # Find changed files in operators directory
