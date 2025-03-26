@@ -72,16 +72,17 @@ class PackageVersionManager:
 
                 self._validate_pyproject(pyproject_data, pyproject_path)
 
-                packages[package_root] = {
+                package_name = os.path.basename(package_root)  # Extract package name
+
+                packages[package_name] = {  # Keep name as key, store path separately
                     "package_path": full_path,
                     "pyproject_path": pyproject_path,
-                    "pyproject_data": pyproject_data,  # Store loaded data to avoid reloading
-                    "current_version": pyproject_data["project"].get(
-                        "version", "0.0.0"
-                    ),
+                    "pyproject_data": pyproject_data,
+                    "current_version": pyproject_data["project"].get("version", "0.0.0"),
                 }
 
-            except (FileNotFoundError, tomlkit.exceptions.TOMLParseError, ValueError) as e:
+
+            except (FileNotFoundError, tomlkit.exceptions.ParseError, ValueError) as e:
                 print(f"Error discovering package at {package_root}: {e}")
 
         # Early validation - at least one valid package found
