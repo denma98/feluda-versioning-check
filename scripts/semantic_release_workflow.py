@@ -335,29 +335,49 @@ class PackageVersionManager:
 
 
 
-    def _update_pyproject_version(self, package_info, new_version):
+    def update_package_versions(self):
         """
-        Ensure pyproject.toml is updated with the correct final incremented version.
+        Update versions for packages with changes and create Git tags.
+
+        Returns:
+            dict: A dictionary mapping package names to their updated version information.
         """
-        pyproject_path = package_info["pyproject_path"]
+        updated_versions = {}
 
-        print(f"🔄 Ensuring {pyproject_path} is updated to the correct version: {new_version}")  # Debug
+        for package_name, package_info in self.packages.items():
+            try:
+                bump_type = self.determine_package_bump(package_info["package_path"])
+                if not bump_type:
+                    continue
 
-        with open(pyproject_path, "r", encoding="utf-8") as f:
-            pyproject_data = tomlkit.parse(f.read())
+                current_version = package_info["current_version"]
+                new_version = self._bump_version(current_version, bump_type)
 
-        # Check if the version is already set incorrectly
-        current_version = pyproject_data["project"].get("version", "0.0.0")
-        if current_version != new_version:
-            print(f"⚠️ Version mismatch detected! pyproject.toml has {current_version}, but we need {new_version}")
+                # ✅ Ensure we find the final available version
+                while self.tag_exists(package_info, new_version):
+                    print(f"⚠️ Tag {new_version} already exists. Incrementing version...")
+                    new_version = self._bump_version(new_version, "patch")  # Increment patch instead
 
-        # Overwrite with the correct version
-        pyproject_data["project"]["version"] = new_version
+                print(f"✅ Final version for {package_name}: {new_version}")
 
-        with open(pyproject_path, "w", encoding="utf-8") as f:
-            f.write(tomlkit.dumps(pyproject_data))
+                # ✅ Now update pyproject.toml with the final version
+                package_info["pyproject_data"]["project"]["version"] = new_version
 
-        print(f"✅ Successfully updated version in {pyproject_path} to {new_version}")
+                with open(package_info["pyproject_path"], "w") as f:
+                    tomlkit.dump(package_info["pyproject_data"], f)
+
+                # ✅ Now create the tag
+                self.create_tag(package_info, new_version)
+                updated_versions[package_name] = {
+                    "old_version": current_version,
+                    "new_version": new_version,
+                    "bump_type": bump_type
+                }
+            except Exception as e:
+                print(f"❌ Error updating {package_name}: {e}")
+
+        return updated_versions
+
 
 
 # Main script execution
