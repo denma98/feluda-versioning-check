@@ -49,50 +49,47 @@ class PackageVersionManager:
                     .get("tag_format"),
             ]):
                 packages["feluda"] = {
-                    "package_path": self.repo_root,  # Root directory
+                    "package_path": self.repo_root,
                     "pyproject_path": root_pyproject,
                     "current_version": pyproject_data["project"]["version"],
                     "pyproject_data": pyproject_data,
                 }
 
-        # Discover subpackages
-        for pyproject_path in glob.glob(f"{self.repo_root}/**/pyproject.toml", recursive=True):
-            package_root = os.path.dirname(pyproject_path)
+        # Discover subpackages - now explicitly looking in operators/ and components/ directories
+        for subdir in ["operators", "components"]:
+            subdir_path = os.path.join(self.repo_root, subdir)
+            if os.path.exists(subdir_path):
+                for pyproject_path in glob.glob(f"{subdir_path}/**/pyproject.toml", recursive=True):
+                    package_root = os.path.dirname(pyproject_path)
+                    try:
+                        with open(pyproject_path, "r") as f:
+                            pyproject_data = tomlkit.parse(f.read())
 
-            # Skip root package (already handled above)
-            if os.path.abspath(package_root) == os.path.abspath(self.repo_root):
-                continue
-
-            try:
-                with open(pyproject_path, "r") as f:
-                    pyproject_data = tomlkit.parse(f.read())
-
-                # Validate required fields
-                if all([
-                    pyproject_data.get("project", {}).get("name"),
-                    pyproject_data.get("project", {}).get("version"),
-                    pyproject_data.get("tool", {})
-                        .get("semantic_release", {})
-                        .get("branches", {})
-                        .get("main", {})
-                        .get("tag_format"),
-                ]):
-                    package_name = pyproject_data["project"]["name"]
-                    packages[package_name] = {
-                        "package_path": package_root,
-                        "pyproject_path": pyproject_path,
-                        "current_version": pyproject_data["project"]["version"],
-                        "pyproject_data": pyproject_data,
-                    }
-            except Exception as e:
-                print(f"Skipping invalid package at {package_root}: {e}")
-                continue
+                        # Validate required fields
+                        if all([
+                            pyproject_data.get("project", {}).get("name"),
+                            pyproject_data.get("project", {}).get("version"),
+                            pyproject_data.get("tool", {})
+                                .get("semantic_release", {})
+                                .get("branches", {})
+                                .get("main", {})
+                                .get("tag_format"),
+                        ]):
+                            package_name = pyproject_data["project"]["name"]
+                            packages[package_name] = {
+                                "package_path": package_root,
+                                "pyproject_path": pyproject_path,
+                                "current_version": pyproject_data["project"]["version"],
+                                "pyproject_data": pyproject_data,
+                            }
+                    except Exception as e:
+                        print(f"Skipping invalid package at {package_root}: {e}")
+                        continue
 
         if not packages:
             raise FileNotFoundError("No valid packages found in the repository")
 
         return packages
-
     def _parse_conventional_commit(self, commit_message):
         """
         Parse a conventional commit message and determine version bump type.
@@ -187,12 +184,19 @@ class PackageVersionManager:
             except subprocess.CalledProcessError:
                 commit_range = f"{self.prev_commit}..{self.current_commit}"
 
-            # For root package, exclude subdirectories
+            # For root package, we need to exclude all subpackages explicitly
             if os.path.abspath(package_path) == os.path.abspath(self.repo_root):
+                # Get all subpackage paths to exclude
+                exclude_paths = []
+                for pkg_name, pkg_info in self.packages.items():
+                    if pkg_name != "feluda":  # Skip root package
+                        rel_path = os.path.relpath(pkg_info["package_path"], self.repo_root)
+                        exclude_paths.append(f":!{rel_path}")
+
                 cmd = [
                     "git", "log", commit_range,
                     "--pretty=format:%B",
-                    "--", ".", ":!*/"  # Exclude subdirectories
+                    "--", ".", *exclude_paths
                 ]
             else:
                 cmd = [
