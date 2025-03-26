@@ -30,68 +30,66 @@ class PackageVersionManager:
         self.packages = self._discover_packages()
 
     def _discover_packages(self):
+        """
+        Discover all packages in the monorepo with their pyproject.toml.
+
+        Returns:
+            dict: Mapping of package paths to their current configuration.
+
+        Raises:
+            FileNotFoundError: If a pyproject.toml file is not found for a package.
+        """
         packages = {}
 
-        # Include root package if pyproject.toml exists
-        root_pyproject = os.path.join(self.repo_root, "pyproject.toml")
-        if os.path.exists(root_pyproject):
-            with open(root_pyproject, "r") as f:
-                pyproject_data = tomlkit.parse(f.read())
+        operators_path = os.path.join(self.repo_root, "operators")
+        if not os.path.exists(operators_path):
+            print(f"Warning: Operators directory not found at {operators_path}")
 
-            # Validate required fields
-            if all([
-                pyproject_data.get("project", {}).get("name"),
-                pyproject_data.get("project", {}).get("version"),
-                pyproject_data.get("tool", {})
-                    .get("semantic_release", {})
-                    .get("branches", {})
-                    .get("main", {})
-                    .get("tag_format"),
-            ]):
-                packages["feluda"] = {
-                    "package_path": self.repo_root,  # Root directory
-                    "pyproject_path": root_pyproject,
-                    "current_version": pyproject_data["project"]["version"],
-                    "pyproject_data": pyproject_data,
-                }
+        # Root package (feluda)
+        package_roots = ["feluda"]
 
-        # Discover subpackages
-        for pyproject_path in glob.glob(f"{self.repo_root}/**/pyproject.toml", recursive=True):
-            package_root = os.path.dirname(pyproject_path)
+        # Discover packages inside 'operators' directory using glob
+        if os.path.isdir(operators_path):
+            for folder in glob.glob(f"{operators_path}/*/pyproject.toml"):
+                package_roots.append(os.path.dirname(folder))
 
-            # Skip root package (already handled above)
-            if os.path.abspath(package_root) == os.path.abspath(self.repo_root):
-                continue
-
+        for package_root in package_roots:
             try:
-                with open(pyproject_path, "r") as f:
+                if package_root == "feluda":
+                    pyproject_path = os.path.join(self.repo_root, "pyproject.toml")
+                    full_path = os.path.join(self.repo_root, "feluda")
+                else:
+                    full_path = os.path.join(self.repo_root, package_root)
+                    pyproject_path = os.path.join(full_path, "pyproject.toml")
+
+                if not os.path.exists(pyproject_path):
+                    raise FileNotFoundError(
+                        f"pyproject.toml not found in {package_root}"
+                    )
+
+                with open(pyproject_path, "r", encoding="utf-8") as f:
                     pyproject_data = tomlkit.parse(f.read())
 
-                # Validate required fields
-                if all([
-                    pyproject_data.get("project", {}).get("name"),
-                    pyproject_data.get("project", {}).get("version"),
-                    pyproject_data.get("tool", {})
-                        .get("semantic_release", {})
-                        .get("branches", {})
-                        .get("main", {})
-                        .get("tag_format"),
-                ]):
-                    package_name = pyproject_data["project"]["name"]
-                    packages[package_name] = {
-                        "package_path": package_root,
-                        "pyproject_path": pyproject_path,
-                        "current_version": pyproject_data["project"]["version"],
-                        "pyproject_data": pyproject_data,
-                    }
-            except Exception as e:
-                print(f"Skipping invalid package at {package_root}: {e}")
-                continue
+                self._validate_pyproject(pyproject_data, pyproject_path)
 
+                packages[package_root] = {
+                    "package_path": full_path,
+                    "pyproject_path": pyproject_path,
+                    "pyproject_data": pyproject_data,  # Store loaded data to avoid reloading
+                    "current_version": pyproject_data["project"].get(
+                        "version", "0.0.0"
+                    ),
+                }
+
+            except (FileNotFoundError, tomlkit.exceptions.TOMLParseError, ValueError) as e:
+                print(f"Error discovering package at {package_root}: {e}")
+
+        # Early validation - at least one valid package found
         if not packages:
-            raise FileNotFoundError("No valid packages found in the repository")
+            raise ValueError("No valid packages discovered in the repository")
 
         return packages
+
 
     def _parse_conventional_commit(self, commit_message):
         """
