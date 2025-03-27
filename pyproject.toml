@@ -1,6 +1,6 @@
 [project]
 name = "feluda"
-version = "0.1.2"
+version = "0.2.2"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -51,3 +51,5 @@ packages = [
 ]
 
 # Automated comment added at: 2025-03-17 16:19:45 UTC
+
+# Automated comment added at: 2025-03-26 13:24:58 UTC
