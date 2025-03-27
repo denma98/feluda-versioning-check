@@ -296,14 +296,12 @@ class PackageVersionManager:
         existing_tags = result.stdout.splitlines()
         print(f"📌 Existing tags: {existing_tags}")  # Debug
 
-        while tag_name in existing_tags:
-            print(f"⚠️ Tag {tag_name} already exists. Incrementing version...")  # Debug
-            current_version = current_version.bump_patch()  # Bump to next patch version
-            tag_name = tag_format.format(name=project_name, version=str(current_version))
+        if tag_name in existing_tags:
+            print(f"⚠️ Tag {tag_name} already exists.")  # Debug
+            return True  # Return True if the tag exists
 
-        print(f"✅ Using new tag: {tag_name}")  # Debug
-        return False  # Return False so the script proceeds with the new version
-
+        print(f"✅ Tag {tag_name} does not exist.")  # Debug
+        return False  # Return False if the tag does not exist
 
 
     def create_tag(self, package_info, new_version):
@@ -348,35 +346,59 @@ class PackageVersionManager:
             try:
                 bump_type = self.determine_package_bump(package_info["package_path"])
                 if not bump_type:
+                    print(f"⏩ Skipping {package_name}, no changes detected.")
                     continue
 
-                current_version = package_info["current_version"]
+                # Ensure we always fetch the latest version
+                current_version = package_info.get("current_version", "0.0.0")
+                print(f"🔍 Current version for {package_name}: {current_version}")
+
                 new_version = self._bump_version(current_version, bump_type)
 
                 # ✅ Ensure we find the final available version
                 while self.tag_exists(package_info, new_version):
                     print(f"⚠️ Tag {new_version} already exists. Incrementing version...")
                     new_version = self._bump_version(new_version, "patch")  # Increment patch instead
+                    print(f"🔄 New version after increment: {new_version}")  # Debug
 
-                print(f"✅ Final version for {package_name}: {new_version}")
+                print(f"✅ Using new tag: {new_version}")
 
-                # ✅ Now update pyproject.toml with the final version
+                # 🔥 Debug before assignment
+                print(f"📝 Before updating package_info: {package_info['pyproject_data']['project']['version']}")
+
+                # 🛠 Explicitly update current_version to avoid resetting issue
+                package_info["current_version"] = new_version
+
+                # 🛠 Force update pyproject.toml version
                 package_info["pyproject_data"]["project"]["version"] = new_version
 
-                with open(package_info["pyproject_path"], "w") as f:
+                # 🔥 Debug after assignment
+                print(f"✅ After updating package_info: {package_info['pyproject_data']['project']['version']}")
+
+                # ✅ Now update pyproject.toml with the final version
+                print(f"📝 Writing final version {new_version} to {package_info['pyproject_path']}")
+
+                with open(package_info["pyproject_path"], "w", encoding="utf-8") as f:
                     tomlkit.dump(package_info["pyproject_data"], f)
+
+                print(f"✅ Successfully wrote version {new_version} to {package_info['pyproject_path']}")
 
                 # ✅ Now create the tag
                 self.create_tag(package_info, new_version)
+
                 updated_versions[package_name] = {
                     "old_version": current_version,
                     "new_version": new_version,
                     "bump_type": bump_type
                 }
+
             except Exception as e:
                 print(f"❌ Error updating {package_name}: {e}")
 
         return updated_versions
+
+
+
 
 
 
