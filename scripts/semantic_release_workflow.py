@@ -206,7 +206,7 @@ class PackageVersionManager:
                 cmd = [
                     "git",
                     "log",
-                    f"{self.prev_commit}..{self.current_commit}",
+                    f"{self.prev_commit}^..{self.current_commit}",
                     "--pretty=format:%s",
                     "--full-history",
                     "--",
@@ -219,7 +219,7 @@ class PackageVersionManager:
                 cmd = [
                     "git",
                     "log",
-                    f"{self.prev_commit}..{self.current_commit}",
+                    f"{self.prev_commit}^..{self.current_commit}",
                     "--pretty=format:%s",
                     "--full-history",
                     "--",
