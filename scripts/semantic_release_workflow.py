@@ -86,7 +86,6 @@ class PackageVersionManager:
             raise ValueError("No valid packages discovered in the repository")
 
         return packages
-
     def _parse_conventional_commit(self, commit_message):
         """
         Parse a conventional commit message and determine version bump type.
@@ -199,6 +198,7 @@ class PackageVersionManager:
         Args:
             package_path (str): Path to the package.
 
+
         Returns:
             list: A list of commit messages affecting the package.
         """
@@ -214,6 +214,7 @@ class PackageVersionManager:
                     "feluda/",
                     "pyproject.toml",
                     ":!operators/*"
+
                 ]
             else:
                 relative_path = os.path.relpath(package_path, self.repo_root)
