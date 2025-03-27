@@ -184,17 +184,16 @@ class PackageVersionManager:
 
     def get_package_commits(self, package_path):
         """
-        Get the list of commits affecting a specific package.
+        Get the list of commits affecting a specific package within the specified commit range.
         """
         try:
             # Adjust the Git command based on the package path
             if package_path == os.path.join(self.repo_root, "feluda"):
                 # For the root package, only include changes in feluda directory and root pyproject.toml
-                # but exclude operators directory
                 cmd = [
                     "git",
                     "log",
-                    f"{self.prev_commit}^..{self.current_commit}",
+                    f"{self.prev_commit}..{self.current_commit}",  # Restrict to the specified commit range
                     "--pretty=format:%s",
                     "--full-history",
                     "--",
@@ -208,7 +207,7 @@ class PackageVersionManager:
                 cmd = [
                     "git",
                     "log",
-                    f"{self.prev_commit}^..{self.current_commit}",
+                    f"{self.prev_commit}..{self.current_commit}",  # Restrict to the specified commit range
                     "--pretty=format:%s",
                     "--full-history",
                     "--",
@@ -315,7 +314,7 @@ class PackageVersionManager:
         result = subprocess.run(cmd, cwd=self.repo_root, capture_output=True, text=True, check=True)
 
         existing_tags = result.stdout.splitlines()
-        print(f"📌 Existing tags: {existing_tags}")  # Debug
+        # print(f"📌 Existing tags: {existing_tags}")  # Debug
 
         if tag_name in existing_tags:
             print(f"⚠️ Tag {tag_name} already exists.")  # Debug
@@ -365,9 +364,18 @@ class PackageVersionManager:
 
         for package_name, package_info in self.packages.items():
             try:
+                # Get commits for this package
+                package_commits = self.get_package_commits(package_info["package_path"])
+
+                # Skip this package if no relevant commits are found
+                if not package_commits:
+                    print(f"⏩ Skipping {package_name}, no changes detected.")
+                    continue
+
+                # Determine the version bump type
                 bump_type = self.determine_package_bump(package_info["package_path"])
                 if not bump_type:
-                    print(f"⏩ Skipping {package_name}, no changes detected.")
+                    print(f"⏩ Skipping {package_name}, no version bump required.")
                     continue
 
                 # Ensure we always fetch the latest version
@@ -376,37 +384,28 @@ class PackageVersionManager:
 
                 new_version = self._bump_version(current_version, bump_type)
 
-                # ✅ Ensure we find the final available version
+                # Ensure the new version does not already exist as a tag
                 while self.tag_exists(package_info, new_version):
                     print(f"⚠️ Tag {new_version} already exists. Incrementing version...")
-                    new_version = self._bump_version(new_version, "patch")  # Increment patch instead
-                    print(f"🔄 New version after increment: {new_version}")  # Debug
+                    new_version = self._bump_version(new_version, "patch")
+                    print(f"🔄 New version after increment: {new_version}")
 
                 print(f"✅ Using new tag: {new_version}")
 
-                # 🔥 Debug before assignment
-                print(f"📝 Before updating package_info: {package_info['pyproject_data']['project']['version']}")
-
-                # 🛠 Explicitly update current_version to avoid resetting issue
+                # Update the package's version in memory
                 package_info["current_version"] = new_version
-
-                # 🛠 Force update pyproject.toml version
                 package_info["pyproject_data"]["project"]["version"] = new_version
 
-                # 🔥 Debug after assignment
-                print(f"✅ After updating package_info: {package_info['pyproject_data']['project']['version']}")
-
-                # ✅ Now update pyproject.toml with the final version
-                print(f"📝 Writing final version {new_version} to {package_info['pyproject_path']}")
-
+                # Write the updated version to pyproject.toml
                 with open(package_info["pyproject_path"], "w", encoding="utf-8") as f:
                     tomlkit.dump(package_info["pyproject_data"], f)
 
                 print(f"✅ Successfully wrote version {new_version} to {package_info['pyproject_path']}")
 
-                # ✅ Now create the tag
+                # Create the Git tag for the new version
                 self.create_tag(package_info, new_version)
 
+                # Record the updated version information
                 updated_versions[package_name] = {
                     "old_version": current_version,
                     "new_version": new_version,
