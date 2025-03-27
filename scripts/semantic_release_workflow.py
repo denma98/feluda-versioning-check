@@ -88,28 +88,46 @@ class PackageVersionManager:
         Parse a conventional commit message and determine version bump type.
 
         Args:
-            commit_message (str): The commit message to parse.
+            commit_message (str): Commit message to parse.
 
         Returns:
-            str: The version bump type ('major', 'minor', 'patch') or None.
+            str: 'major', 'minor', 'patch', or None.
         """
         try:
-            message = commit_message.strip().lower()
+            # Normalize commit message
+            message = commit_message.lower().strip()
 
+            # Check for BREAKING CHANGE
             if "breaking change" in message:
                 return "major"
 
-            first_line = message.split("\n")[0]
-            match = re.match(r"^(\w+)(?:\(|\[)?[^\)\]]*(?:\)|\])?:", first_line)
+            # Parse commit type
+            match = re.match(r"^(\w+)(?:\(|\[)?[^\)\]]*(?:\)|\])?:", message)
             if not match:
-                return "patch" if message else None
+                # If the commit message does not match the conventional commit format
+                # and is not empty, treat it as a "chore:" and return "patch".
+                if message:
+                    return "patch"
+                return None
 
-            commit_type = match.group(1).lower()
+            commit_type = match.group(1)
+
+            # Mapping of commit types to version bump
             type_bump_map = {
                 "feat": "minor",
                 "fix": "patch",
+                "chore": "patch",
+                "docs": "patch",
+                "refactor": "patch",
+                "test": "patch",
+                "perf": "patch",
+                "style": "patch",
+                "build": "patch",
+                "ci": "patch",
+                "revert": "patch",
             }
-            return type_bump_map.get(commit_type, "patch")
+
+            return type_bump_map.get(commit_type)
         except Exception:
             return None
 
