@@ -183,15 +183,38 @@ class PackageVersionManager:
             raise
 
     def get_package_commits(self, package_path):
+        """
+        Get the list of commits affecting a specific package.
+
+        Args:
+            package_path (str): Path to the package directory.
+
+        Returns:
+            list: List of commit messages affecting the package.
+        """
         try:
-            cmd = [
-                "git",
-                "log",
-                f"{self.prev_commit}^..{self.current_commit}",
-                "--pretty=format:%s",
-                "--",
-                package_path,
-            ]
+            # Adjust the Git command based on the package path
+            if package_path == os.path.join(self.repo_root, "feluda"):
+                # For the root package, include only changes in the root directory and pyproject.toml
+                cmd = [
+                    "git",
+                    "log",
+                    f"{self.prev_commit}^..{self.current_commit}",
+                    "--pretty=format:%s",
+                    "--",
+                    ".",
+                    ":!operators",  # Exclude changes in the 'operators' directory
+                ]
+            else:
+                # For other packages, include commits affecting files in their directory
+                cmd = [
+                    "git",
+                    "log",
+                    f"{self.prev_commit}^..{self.current_commit}",
+                    "--pretty=format:%s",
+                    "--",
+                    package_path,
+                ]
 
             print(f"📝 Running Git command: {' '.join(cmd)}")  # Debug
             result = subprocess.run(
