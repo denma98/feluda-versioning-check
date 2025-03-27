@@ -185,50 +185,48 @@ class PackageVersionManager:
     def get_package_commits(self, package_path):
         """
         Get the list of commits affecting a specific package.
-
-        Args:
-            package_path (str): Path to the package directory.
-
-        Returns:
-            list: List of commit messages affecting the package.
         """
         try:
             # Adjust the Git command based on the package path
             if package_path == os.path.join(self.repo_root, "feluda"):
-                # For the root package, include only changes in the root directory and pyproject.toml
+                # For the root package, only include changes in feluda directory and root pyproject.toml
+                # but exclude operators directory
                 cmd = [
                     "git",
                     "log",
                     f"{self.prev_commit}^..{self.current_commit}",
                     "--pretty=format:%s",
+                    "--full-history",
                     "--",
-                    ".",
-                    ":!operators",  # Exclude changes in the 'operators' directory
+                    "feluda/",  # Only changes in feluda directory
+                    "pyproject.toml",  # And root pyproject.toml
+                    ":!operators/*"  # Explicitly exclude operators directory
                 ]
             else:
-                # For other packages, include commits affecting files in their directory
+                # For operators packages, only include changes in their specific directory
+                relative_path = os.path.relpath(package_path, self.repo_root)
                 cmd = [
                     "git",
                     "log",
                     f"{self.prev_commit}^..{self.current_commit}",
                     "--pretty=format:%s",
+                    "--full-history",
                     "--",
-                    package_path,
+                    f"{relative_path}/"  # Only look at changes in this specific operator directory
                 ]
 
-            print(f"📝 Running Git command: {' '.join(cmd)}")  # Debug
+            print(f"📝 Running Git command: {' '.join(cmd)}")
             result = subprocess.run(
                 cmd, cwd=self.repo_root, capture_output=True, text=True, check=True
             )
 
             package_commits = result.stdout.splitlines()
-            print(f"📜 Commits affecting {package_path}: {package_commits}")  # Debug
+            print(f"📜 Commits affecting {package_path}: {package_commits}")
 
             return package_commits
         except subprocess.CalledProcessError as e:
             print(f"❌ Error getting commits for {package_path}: {e}")
             return []
-
 
     def determine_package_bump(self, package_path):
         """
