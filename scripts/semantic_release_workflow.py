@@ -4,7 +4,7 @@ import re
 import subprocess
 import sys
 import tomlkit
-import semver
+
 
 
 class PackageVersionManager:
@@ -56,9 +56,11 @@ class PackageVersionManager:
                 if package_root == "feluda":
                     pyproject_path = os.path.join(self.repo_root, "pyproject.toml")
                     full_path = os.path.join(self.repo_root, "feluda")
+                    include_root_files = True  # Special handling for feluda
                 else:
                     full_path = os.path.join(self.repo_root, package_root)
                     pyproject_path = os.path.join(full_path, "pyproject.toml")
+                    include_root_files = False
 
                 if not os.path.exists(pyproject_path):
                     raise FileNotFoundError(f"pyproject.toml not found in {package_root}")
@@ -73,6 +75,7 @@ class PackageVersionManager:
                     "pyproject_path": pyproject_path,
                     "pyproject_data": pyproject_data,
                     "current_version": pyproject_data["project"].get("version", "0.0.0"),
+                    "include_root_files": include_root_files,  # Add this flag
                 }
 
             except (FileNotFoundError, tomlkit.exceptions.ParseError, ValueError):
@@ -304,8 +307,7 @@ class PackageVersionManager:
         project_name = package_info["pyproject_data"]["project"]["name"]
         tag_format = self._get_tag_format(package_info)
 
-        current_version = semver.Version.parse(new_version)
-        tag_name = tag_format.format(name=project_name, version=str(current_version))
+        tag_name = tag_format.format(name=project_name, version=new_version)
 
         cmd = ["git", "tag", "--list"]
         result = subprocess.run(cmd, cwd=self.repo_root, capture_output=True, text=True, check=True)
